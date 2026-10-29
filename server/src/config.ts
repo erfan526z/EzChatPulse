@@ -63,8 +63,8 @@ export const config: Config = (() => {
     backupIntervalHours: Number(process.env.BACKUP_INTERVAL_HOURS ?? 24),
     backupKeep: Number(process.env.BACKUP_KEEP ?? 5),
     resendApiKey: process.env.RESEND_API_KEY ?? '',
-    mailFrom: process.env.MAIL_FROM ?? 'EzChatPulse <noreply@mail.chatpulse.ir>',
-    appUrl: (process.env.APP_URL ?? 'https://chatpulse.ir').replace(/\/+$/, ''),
+    mailFrom: process.env.MAIL_FROM ?? 'EzChatPulse <noreply@example.com>',
+    appUrl: (process.env.APP_URL ?? 'http://localhost:8443').replace(/\/+$/, ''),
     mailEnabled: (process.env.MAIL_ENABLED ?? '1') === '1',
   };
 })();
