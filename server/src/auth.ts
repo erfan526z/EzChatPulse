@@ -160,10 +160,38 @@ export function getPrivateUser(db: Db, id: number): PrivateUser | null {
   return row ? toPrivateDTO(row) : null;
 }
 
-export function searchUsers(db: Db, query: string): UserDTO[] {
-  const rows = db
-    .prepare('SELECT id, username, display_name, created_at FROM users WHERE username LIKE ? ORDER BY username LIMIT 20')
-    .all(`%${query}%`) as Array<{ id: number; username: string; display_name: string; created_at: number }>;
+/**
+ * User search.
+ *
+ * `strict` (the default) only returns an account when the query is the account's
+ * FULL username or FULL display name (case-insensitive). That closes the
+ * enumerate-the-userbase hole where typing one letter listed everyone whose name
+ * contained it. Pass `strict: false` for admins / when the admin panel has
+ * switched strict mode off, where substring matching is intended.
+ */
+export function searchUsers(db: Db, query: string, opts: { strict?: boolean } = {}): UserDTO[] {
+  const q = query.trim();
+  if (!q) return [];
+  const strict = opts.strict !== false;
+
+  type Row = { id: number; username: string; display_name: string; created_at: number };
+  const sql = 'SELECT id, username, display_name, created_at FROM users WHERE ';
+  const order = ' ORDER BY username LIMIT 20';
+
+  let rows: Row[];
+  if (strict) {
+    rows = db
+      .prepare(`${sql}(username = ? COLLATE NOCASE OR display_name = ? COLLATE NOCASE)${order}`)
+      .all(q, q) as Row[];
+  } else {
+    // escape LIKE wildcards so a query of "%" cannot dump the whole user list
+    const escaped = q.replace(/[\\%_]/g, (c) => `\\${c}`);
+    rows = db
+      .prepare(
+        `${sql}(username LIKE ? ESCAPE '\\' OR display_name LIKE ? ESCAPE '\\')${order}`,
+      )
+      .all(`%${escaped}%`, `%${escaped}%`) as Row[];
+  }
   return rows.map(toDTO);
 }
 

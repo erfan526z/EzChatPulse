@@ -128,14 +128,19 @@ test('/api/me rejects missing/invalid tokens', async () => {
 
 // ── User search ─────────────────────────────────────────────────────────
 
-test('/api/users?q= searches by username prefix', async () => {
+test('/api/users?q= requires the FULL username (strict search by default)', async () => {
   await registerUser(ctx, 'alice', 'Alice', 'password123');
   await registerUser(ctx, 'bob', 'Bob', 'password123');
   const { token } = await registerUser(ctx, 'carol', 'Carol', 'password123');
 
-  const res = await authed('/api/users?q=al', token);
-  assert.equal(res.status, 200);
-  const body = (await res.json()) as any;
+  // partial name must NOT match anymore (this is what stopped user enumeration)
+  const partial = await authed('/api/users?q=al', token);
+  assert.equal(partial.status, 200);
+  assert.equal(((await partial.json()) as any).users.length, 0);
+
+  // the exact username does match
+  const exact = await authed('/api/users?q=alice', token);
+  const body = (await exact.json()) as any;
   assert.equal(body.users.length, 1);
   assert.equal(body.users[0].username, 'alice');
 });

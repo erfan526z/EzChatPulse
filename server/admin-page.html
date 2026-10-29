@@ -91,6 +91,7 @@
     <div class="toolbar">
       <button id="btn-reg" class="danger">…</button>
       <span class="muted" style="font-size:12px">registration kill-switch</span>
+      <button id="btn-search-mode">…</button>
       <span style="flex:1"></span>
       <input id="cleanup-days" type="number" min="0" max="3650" value="30" style="width:70px" title="Delete flagged messages older than this many days" />
       <button id="btn-cleanup" class="danger">Purge deleted &gt; N days</button>
@@ -192,6 +193,29 @@
       btn.textContent = 'Open registration';
       btn.className = '';
       btn.onclick = () => setRegistration(true);
+    }
+
+    const sbtn = $('#btn-search-mode');
+    if (stats.strictSearch) {
+      sbtn.textContent = 'Search: strict ✓';
+      sbtn.className = 'ghost';
+      sbtn.title = 'Non-admins must type the FULL username or display name. Click to allow substring search.';
+      sbtn.onclick = () => setSearchMode(false);
+    } else {
+      sbtn.textContent = 'Search: loose ⚠';
+      sbtn.className = 'danger';
+      sbtn.title = 'Users can enumerate accounts by typing partial names. Click to require exact matches.';
+      sbtn.onclick = () => setSearchMode(true);
+    }
+  }
+
+  async function setSearchMode(strict) {
+    try {
+      await api('/api/admin/search-mode', { method: 'POST', body: JSON.stringify({ strict }) });
+      await refresh();
+      toast(strict ? 'Strict search on — exact username/display-name match only' : 'Loose search on — partial names can enumerate users');
+    } catch (e) {
+      toast(e.message, true);
     }
   }
 

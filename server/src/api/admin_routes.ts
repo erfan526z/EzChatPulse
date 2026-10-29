@@ -57,6 +57,7 @@ router.get(
       uptimeSec: Math.round(process.uptime()),
       connections: totalConnections(),
       registrationOpen: getSetting(db, 'registration_open', process.env.REGISTRATION_OPEN ?? 'true') === 'true',
+      strictSearch: getSetting(db, 'strict_search', 'true') === 'true',
     });
   }),
 );
@@ -129,6 +130,20 @@ router.post(
     if (typeof enabled !== 'boolean') throw new BadRequest('enabled must be a boolean');
     setSetting(getDb(), 'registration_open', String(enabled));
     res.json({ registrationOpen: enabled });
+  }),
+);
+
+/**
+ * Strict user search: when on (default), non-admins only find accounts by their
+ * FULL username or display name — no substring enumeration. Persists in app_settings.
+ */
+router.post(
+  '/search-mode',
+  wrap(async (req, res) => {
+    const strict = (req.body ?? {}).strict;
+    if (typeof strict !== 'boolean') throw new BadRequest('strict must be a boolean');
+    setSetting(getDb(), 'strict_search', String(strict));
+    res.json({ strictSearch: strict });
   }),
 );
 
