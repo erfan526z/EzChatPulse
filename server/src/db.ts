@@ -54,6 +54,16 @@ const migrations: Array<{ version: number; up: (db: Db) => void }> = [
       )`);
     },
   },
+  {
+    // v6 — email verification: when the last verification mail went out (resend cooldown)
+    version: 6,
+    up(db) {
+      const cols = db.prepare('PRAGMA table_info(users)').all() as Array<{ name: string }>;
+      if (!cols.some((c) => c.name === 'email_verify_sent_at')) {
+        db.exec('ALTER TABLE users ADD COLUMN email_verify_sent_at INTEGER');
+      }
+    },
+  },
 ];
 
 function runMigrations(db: Db): void {

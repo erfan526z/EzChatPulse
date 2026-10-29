@@ -18,6 +18,14 @@ export interface Config {
   backupIntervalHours: number;
   /** How many backups to keep before pruning the oldest. */
   backupKeep: number;
+  /** Resend API key (send-only) — empty means mail is unavailable. */
+  resendApiKey: string;
+  /** From address for transactional mail. */
+  mailFrom: string;
+  /** Public origin, used to build links in emails. */
+  appUrl: string;
+  /** Master switch for outbound mail. */
+  mailEnabled: boolean;
 }
 
 // Assumes the server is launched from the server/ directory (npm -w server does this).
@@ -54,6 +62,10 @@ export const config: Config = (() => {
     authRatePerMin: Number(process.env.AUTH_RATE_PER_MIN ?? 10),
     backupIntervalHours: Number(process.env.BACKUP_INTERVAL_HOURS ?? 24),
     backupKeep: Number(process.env.BACKUP_KEEP ?? 5),
+    resendApiKey: process.env.RESEND_API_KEY ?? '',
+    mailFrom: process.env.MAIL_FROM ?? 'EzChatPulse <noreply@mail.chatpulse.ir>',
+    appUrl: (process.env.APP_URL ?? 'https://chatpulse.ir').replace(/\/+$/, ''),
+    mailEnabled: (process.env.MAIL_ENABLED ?? '1') === '1',
   };
 })();
 

@@ -9,6 +9,7 @@ import { isOnline, totalConnections } from '../ws/hub.js';
 import { BadRequest } from '../errors.js';
 import { createBackup, listBackups, backupPath, deleteBackup, restoreFrom } from '../services/backup.js';
 import { captchaCounters } from '../services/captcha.js';
+import { sendVerificationEmail, requireVerifiedEmailSetting } from '../services/verification.js';
 
 const router = Router();
 
@@ -48,6 +49,12 @@ router.get(
         dbSizeBytes = 0;
       }
     }
+    const emailVerified = (db
+      .prepare('SELECT COUNT(*) AS n FROM users WHERE email_verified = 1')
+      .get() as { n: number }).n;
+    const pendingVerification = (db
+      .prepare('SELECT COUNT(*) AS n FROM users WHERE email_verified = 0')
+      .get() as { n: number }).n;
     res.json({
       users: count('users'),
       chats: count('chats'),
@@ -62,6 +69,9 @@ router.get(
       captchaEnabled: getSetting(db, 'captcha_enabled', 'true') === 'true',
       captchaAfterFailures: Number(getSetting(db, 'captcha_after_failures', '3')),
       captcha: captchaCounters(),
+      emailVerified,
+      pendingVerification,
+      requireVerifiedEmail: requireVerifiedEmailSetting(db),
     });
   }),
 );
@@ -91,8 +101,19 @@ router.get(
   wrap(async (_req, res) => {
     const db = getDb();
     const rows = db
-      .prepare('SELECT id, username, display_name, created_at, last_seen_at FROM users ORDER BY id')
-      .all() as Array<{ id: number; username: string; display_name: string; created_at: number; last_seen_at: number | null }>;
+      .prepare(
+        `SELECT id, username, display_name, created_at, last_seen_at, email, email_verified
+         FROM users ORDER BY id`,
+      )
+      .all() as Array<{
+      id: number;
+      username: string;
+      display_name: string;
+      created_at: number;
+      last_seen_at: number | null;
+      email: string | null;
+      email_verified: number;
+    }>;
     res.json({
       users: rows.map((r) => ({
         id: r.id,
@@ -101,8 +122,53 @@ router.get(
         createdAt: r.created_at,
         online: isOnline(r.id),
         lastSeenAt: r.last_seen_at,
+        hasEmail: Boolean(r.email),
+        emailVerified: r.email_verified === 1,
       })),
     });
+  }),
+);
+
+/** Manually mark an account's email as verified (friends who cannot receive mail). */
+router.post(
+  '/users/:id/verify-email',
+  wrap(async (req, res) => {
+    const userId = Number(req.params.id);
+    if (!Number.isInteger(userId)) throw new BadRequest('Invalid user id');
+    const db = getDb();
+    const user = db.prepare('SELECT id, username FROM users WHERE id = ?').get(userId) as
+      | { id: number; username: string }
+      | undefined;
+    if (!user) throw new BadRequest('User not found');
+    db.prepare('UPDATE users SET email_verified = 1 WHERE id = ?').run(userId);
+    res.json({ ok: true, username: user.username });
+  }),
+);
+
+/** Trigger (or resend) a verification email for a specific account. */
+router.post(
+  '/users/:id/send-verification',
+  wrap(async (req, res) => {
+    const userId = Number(req.params.id);
+    if (!Number.isInteger(userId)) throw new BadRequest('Invalid user id');
+    const result = await sendVerificationEmail(getDb(), userId);
+    if (!result.sent) throw new BadRequest(result.error ?? 'Could not send the verification email');
+    res.json(result);
+  }),
+);
+
+/**
+ * Require verified emails before an account may send messages.
+ * Body: { enabled: boolean } — persisted; defaults to off so existing accounts
+ * keep working until the admin opts in.
+ */
+router.post(
+  '/require-verified-email',
+  wrap(async (req, res) => {
+    const enabled = (req.body ?? {}).enabled;
+    if (typeof enabled !== 'boolean') throw new BadRequest('enabled must be a boolean');
+    setSetting(getDb(), 'require_verified_email', String(enabled));
+    res.json({ requireVerifiedEmail: enabled });
   }),
 );
 

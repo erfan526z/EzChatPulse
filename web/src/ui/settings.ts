@@ -74,12 +74,28 @@ export function openSettingsModal(): void {
   emailSave.textContent = 'Save email';
   const emailStatus = document.createElement('div');
   emailStatus.className = 'set-hint';
+  const emailResend = document.createElement('button');
+  emailResend.className = 'set-save';
+  emailResend.textContent = 'Resend verification email';
+  emailResend.style.display = 'none';
+  emailResend.addEventListener('click', async () => {
+    emailResend.disabled = true;
+    try {
+      const r = await api.resendVerification();
+      toast(r.sent ? `Verification email sent to ${r.to}` : r.error ?? 'Could not send', r.sent ? 'info' : 'error');
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Could not send', 'error');
+    } finally {
+      emailResend.disabled = false;
+    }
+  });
   const me = store.state.session?.user;
   if (me?.email) {
     emailInput.value = me.email;
     emailInput.disabled = true;
     emailSave.style.display = 'none';
-    emailStatus.textContent = me.emailVerified ? '✓ verified' : 'not verified yet';
+    emailStatus.textContent = me.emailVerified ? '✓ verified' : 'not verified yet — check your inbox';
+    if (!me.emailVerified) emailResend.style.display = '';
   } else {
     emailStatus.textContent = 'No email on file.';
   }
@@ -93,10 +109,11 @@ export function openSettingsModal(): void {
     try {
       const { user } = await api.updateMe({ email });
       store.setUser(user);
-      toast('Email saved', 'info');
+      toast('Email saved — check your inbox to confirm it', 'info');
       emailInput.disabled = true;
       emailSave.style.display = 'none';
-      emailStatus.textContent = 'not verified yet';
+      emailStatus.textContent = 'not verified yet — check your inbox';
+      emailResend.style.display = '';
     } catch (err) {
       toast(err instanceof Error ? err.message : 'Update failed', 'error');
     } finally {

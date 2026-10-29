@@ -7,6 +7,7 @@ import { rateLimit } from '../rate-limit.js';
 import { config } from '../config.js';
 import { BadRequest } from '../errors.js';
 import { createChallenge, verifyChallenge } from '../services/captcha.js';
+import { sendVerificationEmail, requireVerifiedEmailSetting } from '../services/verification.js';
 
 const router = Router();
 
@@ -82,6 +83,13 @@ router.post('/register', authLimiter, wrap(async (req, res) => {
     verifyChallenge(db, captchaToken, captchaAnswer); // 400 on wrong / expired / replayed
   }
   const result = register(getDb(), username, displayName, password, typeof email === 'string' ? email : undefined);
+  // Best effort: a failed greeting mail must never fail the signup itself.
+  if (typeof email === 'string' && email.trim()) {
+    const userId = result.user.id;
+    void sendVerificationEmail(db, userId).catch((err) => {
+      console.error('verification mail on signup failed:', err instanceof Error ? err.message : err);
+    });
+  }
   res.status(201).json(result);
 }));
 
@@ -130,12 +138,25 @@ router.post('/login', authLimiter, wrap(async (req, res) => {
 }));
 
 router.get('/me', requireAuth, wrap(async (req, res) => {
-  const user = getPrivateUser(getDb(), req.userId);
+  const db = getDb();
+  const user = getPrivateUser(db, req.userId);
   if (!user) {
     res.status(404).json({ error: 'User not found' });
     return;
   }
-  res.json({ user: { ...user, online: isOnline(user.id) } });
+  res.json({
+    user: { ...user, online: isOnline(user.id) },
+    requireVerifiedEmail: requireVerifiedEmailSetting(db),
+  });
+}));
+
+/**
+ * Resend the verification email for the signed-in account.
+ * Rate limited by a 60s cooldown per account (enforced in the service).
+ */
+router.post('/me/verify-email', requireAuth, wrap(async (req, res) => {
+  const result = await sendVerificationEmail(getDb(), req.userId);
+  res.json(result);
 }));
 
 /**
@@ -167,6 +188,10 @@ router.patch('/me', requireAuth, wrap(async (req, res) => {
     if (typeof email !== 'string') throw new BadRequest('email must be a string');
     privateUser = setEmail(getDb(), userId, email);
     changed = true;
+    // kick off verification for the freshly set address (never blocks the response)
+    void sendVerificationEmail(getDb(), userId).catch((err) => {
+      console.error('verification mail on email set failed:', err instanceof Error ? err.message : err);
+    });
   }
   if (!changed) throw new BadRequest('Nothing to update');
   if (displayName !== undefined) {

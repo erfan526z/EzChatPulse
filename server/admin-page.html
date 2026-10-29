@@ -95,6 +95,8 @@
       <input id="captcha-threshold" type="number" min="0" max="50" value="3" style="width:56px" title="Failed logins before a captcha is required (0 = never)" />
       <span class="muted" style="font-size:12px">captcha after N fails</span>
       <button id="btn-search-mode">…</button>
+      <button id="btn-require-verified">…</button>
+      <span class="muted" style="font-size:12px">verified email to send</span>
       <span style="flex:1"></span>
       <input id="cleanup-days" type="number" min="0" max="3650" value="30" style="width:70px" title="Delete flagged messages older than this many days" />
       <button id="btn-cleanup" class="danger">Purge deleted &gt; N days</button>
@@ -187,6 +189,8 @@
       ['Live conns', stats.connections],
       ['Captcha fails', stats.captcha ? stats.captcha.failures : 0],
       ['Captchas solved', stats.captcha ? stats.captcha.solved : 0],
+      ['Email verified', stats.emailVerified ?? 0],
+      ['Pending verify', stats.pendingVerification ?? 0],
     ].map(([lbl, num]) => `<div class="card"><div class="num">${num}</div><div class="lbl">${lbl}</div></div>`).join('');
 
     const btn = $('#btn-reg');
@@ -213,6 +217,19 @@
       sbtn.onclick = () => setSearchMode(true);
     }
 
+    const rbtn = $('#btn-require-verified');
+    if (stats.requireVerifiedEmail) {
+      rbtn.textContent = 'Verified email: required ✓';
+      rbtn.className = 'ghost';
+      rbtn.title = 'Accounts without a confirmed email can read but not send. Click to lift the requirement.';
+      rbtn.onclick = () => setRequireVerified(false);
+    } else {
+      rbtn.textContent = 'Verified email: not required';
+      rbtn.className = '';
+      rbtn.title = 'Anyone can send without confirming an email. Click to require verification.';
+      rbtn.onclick = () => setRequireVerified(true);
+    }
+
     const cbtn = $('#btn-captcha');
     const cthreshold = $('#captcha-threshold');
     if (stats.captchaEnabled) {
@@ -231,6 +248,17 @@
       const n = Math.max(0, Math.min(50, Math.floor(Number(cthreshold.value) || 0)));
       setCaptcha({ afterFailures: n });
     };
+  }
+
+  async function setRequireVerified(enabled) {
+    if (enabled && !confirm('Require a verified email before sending?\n\nAccounts without a confirmed address will be able to read but not send.')) return;
+    try {
+      await api('/api/admin/require-verified-email', { method: 'POST', body: JSON.stringify({ enabled }) });
+      await refresh();
+      toast(enabled ? 'Verified email is now required to send' : 'Verified email requirement lifted');
+    } catch (e) {
+      toast(e.message, true);
+    }
   }
 
   async function setCaptcha(patch) {
@@ -269,9 +297,26 @@
         <td>${fmtAgo(u.lastSeenAt)}</td>
         <td>${fmtDate(u.createdAt)}</td>
         <td style="text-align:right">
+          ${u.emailVerified
+            ? '<span class="muted" style="font-size:12px;margin-right:8px">email ✓</span>'
+            : u.hasEmail
+              ? '<span class="muted" style="font-size:12px;margin-right:8px">email unverified</span><button data-verify-email="' + u.id + '" data-name="' + u.username + '">Verify</button>'
+              : '<span class="muted" style="font-size:12px;margin-right:8px">no email</span>'}
           <button data-reset="${u.id}" data-name="${u.username}">Reset password</button>
         </td>
       </tr>`).join('');
+    document.querySelectorAll('[data-verify-email]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        if (!confirm('Mark @' + btn.dataset.name + "'s email as verified?")) return;
+        try {
+          await api('/api/admin/users/' + btn.dataset.verifyEmail + '/verify-email', { method: 'POST', body: '{}' });
+          toast('@' + btn.dataset.name + ' marked verified');
+          await loadUsers();
+        } catch (e) {
+          toast(e.message, true);
+        }
+      });
+    });
     document.querySelectorAll('[data-reset]').forEach((btn) => {
       btn.addEventListener('click', async () => {
         const next = prompt('New password for @' + btn.dataset.name + ' (min 8 chars):');

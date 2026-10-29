@@ -84,7 +84,12 @@ export const api = {
         ...(captcha ? { captchaToken: captcha.token, captchaAnswer: captcha.answer } : {}),
       }),
     }),
-  me: () => request<{ user: UserDTO }>('/api/me'),
+  me: () => request<{ user: UserDTO; requireVerifiedEmail?: boolean }>('/api/me'),
+  resendVerification: () =>
+    request<{ sent: boolean; to?: string; error?: string }>('/api/me/verify-email', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+    }),
   updateMe: (body: { displayName?: string; currentPassword?: string; newPassword?: string; email?: string }) =>
     request<{ user: UserDTO }>('/api/me', {
       method: 'PATCH',

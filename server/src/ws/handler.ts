@@ -8,6 +8,7 @@ import { handleTyping } from './typing.js';
 import { sendMessage, markRead, editMessage, deleteMessageForEveryone, deleteMessageForMe } from '../services/messages.js';
 import { AppError } from '../errors.js';
 import { rateLimit } from '../rate-limit.js';
+import { sendingBlockedByVerification } from '../services/verification.js';
 
 const AUTH_TIMEOUT_MS = 5000;
 
@@ -66,6 +67,12 @@ export function handleConnection(raw: WebSocket): void {
     // ── Authenticated message types ────────────────────────────
     switch (msg.t) {
       case 'msg.send':
+        // S1: when the admin requires verified emails, unverified accounts can
+        // read but not send. Answer with a typed error the client can explain.
+        if (sendingBlockedByVerification(getDb(), ws.userId)) {
+          sendError(ws, 'EMAIL_NOT_VERIFIED', 'Confirm your email address to send messages');
+          return;
+        }
         handleSend(ws, msg);
         break;
       case 'msg.edit':

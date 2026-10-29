@@ -15,6 +15,7 @@ import captchaRoutes from './api/captcha_routes.js';
 import { handleConnection } from './ws/handler.js';
 import { flushAll } from './presence.js';
 import { startBackupSchedule } from './services/backup.js';
+import { verifyEmailToken } from './services/verification.js';
 
 const app = express();
 app.use(express.json({ limit: '100kb' }));
@@ -36,6 +37,47 @@ app.use('/api/admin', adminRoutes);
 const adminPage = path.resolve(import.meta.dirname, '../admin-page.html');
 app.get('/admin', (_req, res) => {
   res.sendFile(adminPage);
+});
+
+/**
+ * Email verification landing page (S1). Email clients open this directly, so it
+ * must work without JS and without a session — the signed token IS the credential.
+ */
+app.get('/verify', (req, res) => {
+  const token = String(req.query.token ?? '');
+  let ok = false;
+  let message = 'This verification link is not valid.';
+  try {
+    const target = verifyEmailToken(getDb(), token);
+    ok = true;
+    message = `${target.email} is now confirmed. You can go back to the app.`;
+  } catch (err) {
+    message = err instanceof Error ? err.message : 'Verification failed.';
+  }
+  res.set('cache-control', 'no-store');
+  res.status(ok ? 200 : 400).type('html').send(`<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${ok ? 'Email verified' : 'Verification failed'} — EzChatPulse</title>
+<style>
+  :root { color-scheme: light dark }
+  body { margin:0; min-height:100vh; display:grid; place-items:center; background:#0f1115;
+         font-family:system-ui,-apple-system,Segoe UI,sans-serif; color:#e7e9ee }
+  .card { max-width:420px; padding:32px 28px; background:#171a21; border:1px solid #262b35;
+          border-radius:16px; text-align:center }
+  .badge { width:56px; height:56px; margin:0 auto 18px; border-radius:50%; display:grid;
+           place-items:center; font-size:28px; background:${ok ? '#173b2b' : '#3b1a1a'};
+           color:${ok ? '#4ade80' : '#f87171'} }
+  h1 { font-size:19px; margin:0 0 10px }
+  p { color:#9aa3b2; font-size:14px; line-height:1.55; margin:0 0 22px }
+  a { display:inline-block; padding:11px 18px; border-radius:10px; background:#4f46e5;
+      color:#fff; text-decoration:none; font-weight:600; font-size:14px }
+</style></head>
+<body><div class="card">
+  <div class="badge">${ok ? '✓' : '!'}</div>
+  <h1>${ok ? 'Email verified' : 'Could not verify'}</h1>
+  <p>${message.replace(/[<>&]/g, '')}</p>
+  <a href="${config.appUrl}">Open EzChatPulse</a>
+</div></body></html>`);
 });
 
 // Serve the built web client (single deployment: `npm run build && npm start`)
