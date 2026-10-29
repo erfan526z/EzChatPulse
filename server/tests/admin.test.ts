@@ -1,6 +1,6 @@
 import { test, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { createTestContext, destroyTestContext, registerUser, type TestContext } from './helpers.js';
+import { createTestContext, destroyTestContext, registerUser, solvedCaptcha, type TestContext } from './helpers.js';
 
 // admins are whoever is on the ADMIN_USERNAMES list (read lazily at request time)
 process.env.ADMIN_USERNAMES = 'admin';
@@ -131,7 +131,12 @@ test('registration kill-switch blocks and re-opens signups', async () => {
   const allowed = await api('/api/register', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ username: 'newbie2', displayName: 'Newbie2', password: 'password123' }),
+    body: JSON.stringify({
+      username: 'newbie2',
+      displayName: 'Newbie2',
+      password: 'password123',
+      ...(await solvedCaptcha(ctx.port)),
+    }),
   });
   assert.equal(allowed.status, 201);
 });

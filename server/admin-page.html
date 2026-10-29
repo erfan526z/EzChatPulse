@@ -91,6 +91,9 @@
     <div class="toolbar">
       <button id="btn-reg" class="danger">…</button>
       <span class="muted" style="font-size:12px">registration kill-switch</span>
+      <button id="btn-captcha">…</button>
+      <input id="captcha-threshold" type="number" min="0" max="50" value="3" style="width:56px" title="Failed logins before a captcha is required (0 = never)" />
+      <span class="muted" style="font-size:12px">captcha after N fails</span>
       <button id="btn-search-mode">…</button>
       <span style="flex:1"></span>
       <input id="cleanup-days" type="number" min="0" max="3650" value="30" style="width:70px" title="Delete flagged messages older than this many days" />
@@ -182,6 +185,8 @@
       ['DB size', fmtBytes(stats.dbSizeBytes)],
       ['Uptime', stats.uptimeSec + 's'],
       ['Live conns', stats.connections],
+      ['Captcha fails', stats.captcha ? stats.captcha.failures : 0],
+      ['Captchas solved', stats.captcha ? stats.captcha.solved : 0],
     ].map(([lbl, num]) => `<div class="card"><div class="num">${num}</div><div class="lbl">${lbl}</div></div>`).join('');
 
     const btn = $('#btn-reg');
@@ -206,6 +211,41 @@
       sbtn.className = 'danger';
       sbtn.title = 'Users can enumerate accounts by typing partial names. Click to require exact matches.';
       sbtn.onclick = () => setSearchMode(true);
+    }
+
+    const cbtn = $('#btn-captcha');
+    const cthreshold = $('#captcha-threshold');
+    if (stats.captchaEnabled) {
+      cbtn.textContent = 'Captcha: on ✓';
+      cbtn.className = 'ghost';
+      cbtn.title = 'Registration always asks for a captcha; logins after the threshold below. Click to disable.';
+      cbtn.onclick = () => setCaptcha({ enabled: false });
+    } else {
+      cbtn.textContent = 'Captcha: off ⚠';
+      cbtn.className = 'danger';
+      cbtn.title = 'Scripted signups are unrestricted. Click to enable.';
+      cbtn.onclick = () => setCaptcha({ enabled: true });
+    }
+    if (document.activeElement !== cthreshold) cthreshold.value = String(stats.captchaAfterFailures);
+    cthreshold.onchange = () => {
+      const n = Math.max(0, Math.min(50, Math.floor(Number(cthreshold.value) || 0)));
+      setCaptcha({ afterFailures: n });
+    };
+  }
+
+  async function setCaptcha(patch) {
+    try {
+      await api('/api/admin/captcha', { method: 'POST', body: JSON.stringify(patch) });
+      await refresh();
+      toast(
+        patch.enabled === undefined
+          ? 'Captcha threshold set'
+          : patch.enabled
+            ? 'Captcha enabled'
+            : 'Captcha disabled — scripted signups are unrestricted',
+      );
+    } catch (e) {
+      toast(e.message, true);
     }
   }
 

@@ -44,6 +44,16 @@ const migrations: Array<{ version: number; up: (db: Db) => void }> = [
       if (!has('email_verified')) db.exec('ALTER TABLE users ADD COLUMN email_verified INTEGER NOT NULL DEFAULT 0');
     },
   },
+  {
+    // v5 — captcha replay protection: record solved challenge tokens (single use)
+    version: 5,
+    up(db) {
+      db.exec(`CREATE TABLE IF NOT EXISTS captcha_used (
+        token_hash TEXT PRIMARY KEY,
+        used_at INTEGER NOT NULL
+      )`);
+    },
+  },
 ];
 
 function runMigrations(db: Db): void {

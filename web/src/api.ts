@@ -15,10 +15,18 @@ export class ApiError extends Error {
   constructor(
     public status: number,
     message: string,
+    /** parsed response body, when the server sent one (e.g. captchaRequired) */
+    public body?: Record<string, unknown>,
   ) {
     super(message);
     this.name = 'ApiError';
   }
+}
+
+export interface CaptchaChallenge {
+  token: string;
+  svg: string;
+  expiresInSec: number;
 }
 
 // <img>/<a> can't send Authorization headers, so files are fetched with
@@ -42,22 +50,39 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   if (token) headers.authorization = `Bearer ${token}`;
   const res = await fetch(path, { ...options, headers });
   const body = await res.json().catch(() => ({}));
-  if (!res.ok) throw new ApiError(res.status, (body as { error?: string }).error ?? res.statusText);
+  if (!res.ok) {
+    throw new ApiError(res.status, (body as { error?: string }).error ?? res.statusText, body as Record<string, unknown>);
+  }
   return body as T;
 }
 
+export interface CaptchaAnswer {
+  token: string;
+  answer: string;
+}
+
 export const api = {
-  register: (username: string, displayName: string, password: string) =>
+  captcha: () => request<CaptchaChallenge>('/api/captcha'),
+  register: (username: string, displayName: string, password: string, captcha?: CaptchaAnswer) =>
     request<Session>('/api/register', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ username, displayName, password }),
+      body: JSON.stringify({
+        username,
+        displayName,
+        password,
+        ...(captcha ? { captchaToken: captcha.token, captchaAnswer: captcha.answer } : {}),
+      }),
     }),
-  login: (username: string, password: string) =>
+  login: (username: string, password: string, captcha?: CaptchaAnswer) =>
     request<Session>('/api/login', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ username, password }),
+      body: JSON.stringify({
+        username,
+        password,
+        ...(captcha ? { captchaToken: captcha.token, captchaAnswer: captcha.answer } : {}),
+      }),
     }),
   me: () => request<{ user: UserDTO }>('/api/me'),
   updateMe: (body: { displayName?: string; currentPassword?: string; newPassword?: string; email?: string }) =>

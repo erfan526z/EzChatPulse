@@ -11,6 +11,7 @@ import userRoutes from './api/user_routes.js';
 import chatRoutes from './api/chat_routes.js';
 import fileRoutes from './api/file_routes.js';
 import adminRoutes from './api/admin_routes.js';
+import captchaRoutes from './api/captcha_routes.js';
 import { handleConnection } from './ws/handler.js';
 import { flushAll } from './presence.js';
 import { startBackupSchedule } from './services/backup.js';
@@ -28,6 +29,7 @@ app.use('/api', authRoutes);
 app.use('/api', chatRoutes);
 app.use('/api', fileRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/captcha', captchaRoutes);
 app.use('/api/admin', adminRoutes);
 
 // Admin console (hidden from normal users; only admins can authenticate)

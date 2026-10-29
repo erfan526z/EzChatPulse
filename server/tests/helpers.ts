@@ -9,6 +9,7 @@ import userRoutes from '../src/api/user_routes.js';
 import chatRoutes from '../src/api/chat_routes.js';
 import fileRoutes from '../src/api/file_routes.js';
 import adminRoutes from '../src/api/admin_routes.js';
+import captchaRoutes from '../src/api/captcha_routes.js';
 import { handleConnection } from '../src/ws/handler.js';
 
 export interface TestContext {
@@ -33,6 +34,7 @@ export function createTestContext(): Promise<TestContext> {
   app.use('/api', chatRoutes);
   app.use('/api', fileRoutes);
   app.use('/api/users', userRoutes);
+  app.use('/api/captcha', captchaRoutes);
   app.use('/api/admin', adminRoutes);
   app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
     errorHandler(err, req, res, next);
@@ -71,6 +73,30 @@ export async function destroyTestContext(ctx: TestContext): Promise<void> {
   await ctx.close();
 }
 
+/**
+ * Read the arithmetic question out of a captcha SVG — exactly the information a
+ * human reads off the image — and return the answer. Used by API-driven tests so
+ * they exercise the real challenge instead of bypassing it.
+ */
+export function solveCaptchaSvg(svg: string): string {
+  const chars = [...svg.matchAll(/<text[^>]*>(.*?)<\/text>/g)].map((m) =>
+    m[1].replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<'),
+  );
+  const question = chars.join('').replace(/\s+/g, ' ').trim();
+  const match = question.match(/^(\d+)\s*([+\u2212-])\s*(\d+)$/);
+  if (!match) throw new Error(`cannot parse captcha question: ${JSON.stringify(question)}`);
+  const a = Number(match[1]);
+  const b = Number(match[3]);
+  return String(match[2] === '+' ? a + b : a - b);
+}
+
+/** Fetch a fresh challenge from a test server and solve it. */
+export async function solvedCaptcha(port: number): Promise<{ captchaToken: string; captchaAnswer: string }> {
+  const res = await fetch(`http://127.0.0.1:${port}/api/captcha`);
+  const body = (await res.json()) as { token: string; svg: string };
+  return { captchaToken: body.token, captchaAnswer: solveCaptchaSvg(body.svg) };
+}
+
 /** Register a user via the API and return { token, user }. */
 export async function registerUser(
   ctx: TestContext,
@@ -81,7 +107,7 @@ export async function registerUser(
   const res = await fetch(`http://127.0.0.1:${ctx.port}/api/register`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ username, displayName, password }),
+    body: JSON.stringify({ username, displayName, password, ...(await solvedCaptcha(ctx.port)) }),
   });
   const body = (await res.json()) as any;
   if (res.status !== 201) throw new Error(`register failed (${res.status}): ${JSON.stringify(body)}`);

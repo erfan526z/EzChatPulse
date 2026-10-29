@@ -5,6 +5,7 @@ import {
   createTestContext,
   destroyTestContext,
   registerUser,
+  solvedCaptcha,
   wsConnectAuthed,
   waitForMessage,
   type TestContext,
@@ -37,7 +38,12 @@ test('register creates a user and returns a token', async () => {
   const res = await api('/api/register', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ username: 'alice', displayName: 'Alice', password: 'password123' }),
+    body: JSON.stringify({
+      username: 'alice',
+      displayName: 'Alice',
+      password: 'password123',
+      ...(await solvedCaptcha(ctx.port)),
+    }),
   });
   assert.equal(res.status, 201);
   const body = (await res.json()) as any;
@@ -52,7 +58,12 @@ test('register rejects duplicate username with 409', async () => {
   const res = await api('/api/register', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ username: 'bob', displayName: 'Bob2', password: 'password123' }),
+    body: JSON.stringify({
+      username: 'bob',
+      displayName: 'Bob2',
+      password: 'password123',
+      ...(await solvedCaptcha(ctx.port)),
+    }),
   });
   assert.equal(res.status, 409);
 });
@@ -61,14 +72,24 @@ test('register rejects weak username and short password', async () => {
   const badUsername = await api('/api/register', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ username: 'a!', displayName: 'X', password: 'password123' }),
+    body: JSON.stringify({
+      username: 'a!',
+      displayName: 'X',
+      password: 'password123',
+      ...(await solvedCaptcha(ctx.port)),
+    }),
   });
   assert.equal(badUsername.status, 400);
 
   const shortPw = await api('/api/register', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ username: 'carol', displayName: 'Carol', password: 'short' }),
+    body: JSON.stringify({
+      username: 'carol',
+      displayName: 'Carol',
+      password: 'short',
+      ...(await solvedCaptcha(ctx.port)),
+    }),
   });
   assert.equal(shortPw.status, 400);
 });
@@ -368,7 +389,13 @@ test('registration accepts an optional email', async () => {
   const res = await api('/api/register', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ username: 'mailuser', displayName: 'Mail User', password: 'password123', email: 'mail@example.com' }),
+    body: JSON.stringify({
+      username: 'mailuser',
+      displayName: 'Mail User',
+      password: 'password123',
+      email: 'mail@example.com',
+      ...(await solvedCaptcha(ctx.port)),
+    }),
   });
   assert.equal(res.status, 201);
   const body = (await res.json()) as any;

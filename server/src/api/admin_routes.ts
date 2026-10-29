@@ -8,6 +8,7 @@ import { requireAuth, getUserById } from '../auth.js';
 import { isOnline, totalConnections } from '../ws/hub.js';
 import { BadRequest } from '../errors.js';
 import { createBackup, listBackups, backupPath, deleteBackup, restoreFrom } from '../services/backup.js';
+import { captchaCounters } from '../services/captcha.js';
 
 const router = Router();
 
@@ -58,6 +59,9 @@ router.get(
       connections: totalConnections(),
       registrationOpen: getSetting(db, 'registration_open', process.env.REGISTRATION_OPEN ?? 'true') === 'true',
       strictSearch: getSetting(db, 'strict_search', 'true') === 'true',
+      captchaEnabled: getSetting(db, 'captcha_enabled', 'true') === 'true',
+      captchaAfterFailures: Number(getSetting(db, 'captcha_after_failures', '3')),
+      captcha: captchaCounters(),
     });
   }),
 );
@@ -144,6 +148,33 @@ router.post(
     if (typeof strict !== 'boolean') throw new BadRequest('strict must be a boolean');
     setSetting(getDb(), 'strict_search', String(strict));
     res.json({ strictSearch: strict });
+  }),
+);
+
+/**
+ * Captcha: on/off + how many failed logins trigger it. Body may contain
+ * { enabled?: boolean, afterFailures?: number } — both optional, both persisted.
+ */
+router.post(
+  '/captcha',
+  wrap(async (req, res) => {
+    const body = req.body ?? {};
+    if (body.enabled !== undefined && typeof body.enabled !== 'boolean') {
+      throw new BadRequest('enabled must be a boolean');
+    }
+    if (body.afterFailures !== undefined) {
+      const n = Number(body.afterFailures);
+      if (!Number.isInteger(n) || n < 0 || n > 50) throw new BadRequest('afterFailures must be an integer 0-50');
+      setSetting(getDb(), 'captcha_after_failures', String(n));
+    }
+    if (body.enabled !== undefined) setSetting(getDb(), 'captcha_enabled', String(body.enabled));
+    if (body.enabled === undefined && body.afterFailures === undefined) throw new BadRequest('Nothing to update');
+
+    const db = getDb();
+    res.json({
+      captchaEnabled: getSetting(db, 'captcha_enabled', 'true') === 'true',
+      captchaAfterFailures: Number(getSetting(db, 'captcha_after_failures', '3')),
+    });
   }),
 );
 
