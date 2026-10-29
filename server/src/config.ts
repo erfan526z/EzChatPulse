@@ -14,6 +14,10 @@ export interface Config {
   maxUploadBytes: number;
   maxWsFrameBytes: number;
   authRatePerMin: number;
+  /** Automatic backup cadence in hours (0 disables the schedule). */
+  backupIntervalHours: number;
+  /** How many backups to keep before pruning the oldest. */
+  backupKeep: number;
 }
 
 // Assumes the server is launched from the server/ directory (npm -w server does this).
@@ -48,6 +52,8 @@ export const config: Config = (() => {
     maxUploadBytes: Number(process.env.MAX_UPLOAD_BYTES ?? 25 * 1024 * 1024),
     maxWsFrameBytes: 64 * 1024,
     authRatePerMin: Number(process.env.AUTH_RATE_PER_MIN ?? 10),
+    backupIntervalHours: Number(process.env.BACKUP_INTERVAL_HOURS ?? 24),
+    backupKeep: Number(process.env.BACKUP_KEEP ?? 5),
   };
 })();
 

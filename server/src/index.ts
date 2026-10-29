@@ -13,6 +13,7 @@ import fileRoutes from './api/file_routes.js';
 import adminRoutes from './api/admin_routes.js';
 import { handleConnection } from './ws/handler.js';
 import { flushAll } from './presence.js';
+import { startBackupSchedule } from './services/backup.js';
 
 const app = express();
 app.use(express.json({ limit: '100kb' }));
@@ -60,10 +61,18 @@ const wss = new WebSocketServer({ server, path: '/ws' });
 wss.on('connection', (ws: WebSocket) => handleConnection(ws));
 
 server.listen(config.port, config.host, () => {
-  getDb(); // open the database at startup so failures surface immediately
+  const db = getDb(); // open the database at startup so failures surface immediately
   console.log(`ezchatpulse server listening on https://${config.host}:${config.port}`);
   console.log(`  ws endpoint:   wss://localhost:${config.port}/ws`);
   console.log(`  health check:  https://localhost:${config.port}/api/health`);
+
+  // Periodic backups (WAL-safe snapshots + uploads, pruned to BACKUP_KEEP)
+  if (config.dbPath !== ':memory:') {
+    startBackupSchedule(db, config.dataDir, config.backupIntervalHours, config.backupKeep);
+    if (config.backupIntervalHours > 0) {
+      console.log(`  backups:       every ${config.backupIntervalHours}h, keeping ${config.backupKeep} in data/backups/`);
+    }
+  }
 });
 
 // Graceful shutdown: flush pending last_seen writes

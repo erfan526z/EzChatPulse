@@ -7,6 +7,7 @@ import { config, isAdminUsername } from '../config.js';
 import { requireAuth, getUserById } from '../auth.js';
 import { isOnline, totalConnections } from '../ws/hub.js';
 import { BadRequest } from '../errors.js';
+import { createBackup, listBackups, backupPath, deleteBackup, restoreFrom } from '../services/backup.js';
 
 const router = Router();
 
@@ -128,6 +129,83 @@ router.post(
     if (typeof enabled !== 'boolean') throw new BadRequest('enabled must be a boolean');
     setSetting(getDb(), 'registration_open', String(enabled));
     res.json({ registrationOpen: enabled });
+  }),
+);
+
+// ── Backups ─────────────────────────────────────────────────────────────
+
+/** Available backups (newest first) + the active schedule. */
+router.get(
+  '/backups',
+  wrap(async (_req, res) => {
+    res.json({
+      backups: listBackups(config.dataDir),
+      intervalHours: config.backupIntervalHours,
+      keep: config.backupKeep,
+    });
+  }),
+);
+
+/** Take a backup now. */
+router.post(
+  '/backups',
+  wrap(async (_req, res) => {
+    const entry = await createBackup(getDb(), config.dataDir);
+    res.status(201).json({ backup: entry });
+  }),
+);
+
+/** Download a backup archive (off-box copy). */
+router.get(
+  '/backups/:name',
+  wrap(async (req, res) => {
+    const file = backupPath(config.dataDir, String(req.params.name));
+    res.download(file);
+  }),
+);
+
+/** Delete a backup archive. */
+router.delete(
+  '/backups/:name',
+  wrap(async (req, res) => {
+    deleteBackup(config.dataDir, String(req.params.name));
+    res.json({ ok: true });
+  }),
+);
+
+/**
+ * Restore a backup.
+ *
+ * Safety rails: a "pre-restore" snapshot of the CURRENT state is taken first,
+ * the swap happens with the database handle closed (atomic rename), and the
+ * process then exits non-zero so systemd (Restart=on-failure) brings it back up
+ * on the restored database.
+ */
+router.post(
+  '/restore',
+  wrap(async (req, res) => {
+    if (config.dbPath === ':memory:') throw new BadRequest('Restore is not available for in-memory databases');
+    const body = req.body ?? {};
+    // Destructive + irreversible from the caller's side: require an explicit token
+    // so a stray/automated call can never wipe the live data.
+    if (body.confirm !== 'RESTORE') throw new BadRequest('restore requires confirm: "RESTORE"');
+    const name = String(body.name ?? '');
+    backupPath(config.dataDir, name); // validates the name and that the file exists
+
+    const db = getDb();
+    const pre = await createBackup(db, config.dataDir, 'pre-restore');
+    res.json({ ok: true, restoring: name, preRestoreBackup: pre.name, restarting: true });
+
+    setTimeout(() => {
+      try {
+        db.close();
+        restoreFrom(config.dataDir, name);
+        console.log(`restore: applied ${name} — exiting for systemd restart`);
+      } catch (err) {
+        console.error('restore failed:', err);
+      }
+      process.exit(1); // Restart=on-failure brings the service back
+    }, 500);
   }),
 );
 

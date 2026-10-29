@@ -100,6 +100,17 @@
 
     <div class="cards" id="cards"></div>
 
+    <div class="toolbar" style="margin:18px 0 8px">
+      <strong style="font-size:14px">Backups</strong>
+      <button id="btn-backup-now">Backup now</button>
+      <span class="muted" id="backup-schedule" style="font-size:12px"></span>
+      <span style="flex:1"></span>
+    </div>
+    <table>
+      <thead><tr><th>Backup</th><th>Size</th><th>Created</th><th></th></tr></thead>
+      <tbody id="backup-rows"></tbody>
+    </table>
+
     <table>
       <thead><tr><th>User</th><th>Username</th><th>Status</th><th>Last seen</th><th>Joined</th><th></th></tr></thead>
       <tbody id="rows"></tbody>
@@ -217,11 +228,138 @@
   async function refresh() {
     try {
       await loadStats();
+      await loadBackups();
       await loadUsers();
     } catch (e) {
       toast(e.message, true);
     }
   }
+
+  // ── backups ──────────────────────────────────────────────────────────
+  async function loadBackups() {
+    const data = await api('/api/admin/backups');
+    $('#backup-schedule').textContent =
+      data.intervalHours > 0
+        ? `automatic: every ${data.intervalHours}h · keeping ${data.keep}`
+        : 'automatic backups disabled';
+    const tbody = $('#backup-rows');
+    tbody.innerHTML = '';
+    if (!data.backups.length) {
+      tbody.innerHTML = '<tr><td colspan="4" class="muted" style="padding:10px 8px">No backups yet — take one now.</td></tr>';
+      return;
+    }
+    for (const b of data.backups) {
+      const tr = document.createElement('tr');
+      const nameTd = document.createElement('td');
+      nameTd.textContent = b.name;
+      const sizeTd = document.createElement('td');
+      sizeTd.textContent = fmtBytes(b.sizeBytes);
+      const whenTd = document.createElement('td');
+      whenTd.textContent = new Date(b.createdAt).toLocaleString();
+      const actions = document.createElement('td');
+
+      const dl = document.createElement('button');
+      dl.className = 'ghost';
+      dl.textContent = 'Download';
+      dl.onclick = () => downloadBackup(b.name);
+
+      const rs = document.createElement('button');
+      rs.className = 'danger';
+      rs.textContent = 'Restore';
+      rs.onclick = () => restoreBackup(b.name);
+
+      const del = document.createElement('button');
+      del.className = 'ghost';
+      del.textContent = 'Delete';
+      del.onclick = () => removeBackup(b.name);
+
+      actions.append(dl, rs, del);
+      tr.append(nameTd, sizeTd, whenTd, actions);
+      tbody.appendChild(tr);
+    }
+  }
+
+  async function downloadBackup(name) {
+    try {
+      const token = localStorage.getItem(TOKEN_KEY);
+      const res = await fetch('/api/admin/backups/' + encodeURIComponent(name), {
+        headers: { authorization: 'Bearer ' + token },
+      });
+      if (!res.ok) throw new Error('Download failed (' + res.status + ')');
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = name;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+      toast('Downloading ' + name);
+    } catch (e) {
+      toast(e.message, true);
+    }
+  }
+
+  async function removeBackup(name) {
+    if (!confirm('Delete backup ' + name + '?')) return;
+    try {
+      await api('/api/admin/backups/' + encodeURIComponent(name), { method: 'DELETE' });
+      toast('Backup deleted');
+      await loadBackups();
+    } catch (e) {
+      toast(e.message, true);
+    }
+  }
+
+  async function restoreBackup(name) {
+    if (
+      !confirm(
+        'Restore ' + name + '?\n\n' +
+          '· A safety snapshot of the CURRENT data is taken first\n' +
+          '· The server restarts on the restored data (~5s downtime)',
+      )
+    )
+      return;
+    const typed = prompt('Type RESTORE (capital letters) to confirm:');
+    if (typed !== 'RESTORE') {
+      toast('Restore cancelled');
+      return;
+    }
+    try {
+      const r = await api('/api/admin/restore', {
+        method: 'POST',
+        body: JSON.stringify({ name, confirm: 'RESTORE' }),
+      });
+      toast('Restoring… safety snapshot: ' + r.preRestoreBackup);
+      for (let i = 0; i < 40; i++) {
+        await new Promise((res) => setTimeout(res, 1000));
+        const ok = await fetch('/api/health').then((x) => x.ok).catch(() => false);
+        if (ok) {
+          toast('Restore complete — reloading');
+          setTimeout(() => location.reload(), 900);
+          return;
+        }
+      }
+      toast('Server has not come back yet — check it manually', true);
+    } catch (e) {
+      toast(e.message, true);
+    }
+  }
+
+  $('#btn-backup-now').addEventListener('click', async () => {
+    const btn = $('#btn-backup-now');
+    btn.disabled = true;
+    btn.textContent = 'Backing up…';
+    try {
+      const r = await api('/api/admin/backups', { method: 'POST' });
+      toast('Backup created: ' + r.backup.name);
+      await loadBackups();
+    } catch (e) {
+      toast(e.message, true);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Backup now';
+    }
+  });
 
   async function setRegistration(enabled) {
     try {
