@@ -10,7 +10,7 @@
 |---|------|-------|-------------|--------|
 | S1 | Email verification | block bot account creation: require a verified email before an account can send messages; `email_verified` column already exists (migration v4), the capture flow is built — needs SMTP creds + a signed token link + resend | toggle "require verified email", unverified-account list, manual verify, resend | 🟡 needs SMTP |
 | S2 | Basic captcha | very simple, **self-hosted** (no third-party, no tracking): server-signed math/hold-to-confirm challenge with a short TTL, applied to registration and to login after N failures | enable/disable, sensitivity (attempts before captcha), captcha-failure counter | 🔜 |
-| S3 | Backup + restore | biggest real risk (single SQLite file, zero backups today): scheduled `sqlite3 .backup` (WAL-safe) snapshots with retention + optional off-box copy; restore = confirm + automatic pre-restore snapshot | "Backup now", list backups (date/size), download, restore with double-confirm | 🔜 **highest value** |
+| S3 | Backup + restore | ✅ **DONE** — WAL-safe online snapshots (db + uploads + manifest) tarred into `data/backups/`, automatic every `BACKUP_INTERVAL_HOURS` (24) keeping `BACKUP_KEEP` (5); restore = safety snapshot → atomic swap → restart | Backup now · list (size/date) · download · delete · restore (double-confirm) | ✅ live |
 | S4 | Search = full-string match only | public user search currently matches substrings (`LIKE %q%`), so anyone can enumerate/harvest the user list letter by letter; restrict non-admins to exact username / exact display-name matches | toggle strict search on/off (admins keep fuzzy matching) | 🔜 **cheapest win** |
 
 ## Active backlog (features, priority order)
@@ -49,6 +49,7 @@
 | 5 | Aug 9 | Reply-to-message (quote + jump), email capture (one-time, private DTO, migration v4), soft-delete retention (hidden rows + admin purge) | 68/68, 12/12 live |
 | 6 | Aug 15 | Delete confirmation, leave/delete group (member.left, last-member auto-delete, admin cascade + chat.deleted) | 71/71, 11/11 live |
 | — | Sep 21 | CP-22 hardening: malformed requests → 400 (shared error handler), no log spam | 79/79 tests |
+| 7 | Oct 29 | **Backups + restore** (S3): WAL-safe snapshots of db+uploads every 24h (keep 5), admin panel section (backup now / download / delete / restore), cold restore with pre-restore safety snapshot | 89/89 tests, 10/10 live incl. a real restore |
 
 ## License
 
