@@ -116,7 +116,17 @@ class ChatSocket {
 
       case 'error':
         console.warn('server ws error:', msg.code, msg.message);
-        void import('./ui/toast').then(({ toast }) => toast(msg.message ?? 'Something went wrong', 'error'));
+        void import('./ui/toast').then(({ toast }) => {
+          // Actionable errors: send the user straight to the place that fixes it.
+          if (msg.code === 'EMAIL_NOT_VERIFIED') {
+            toast(msg.message ?? 'Confirm your email address to send messages', 'error', {
+              label: 'Add email',
+              onClick: () => void import('./ui/settings').then((m) => m.openSettingsModal()),
+            });
+            return;
+          }
+          toast(msg.message ?? 'Something went wrong', 'error');
+        });
         break;
     }
   }

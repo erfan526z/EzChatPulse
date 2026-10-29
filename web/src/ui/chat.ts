@@ -616,6 +616,10 @@ export function mountChatPane(): void {
 
   // ── composer ──────────────────────────────────────────────────────────
   composerEl.innerHTML = `
+    <div id="verify-banner" class="verify-banner hidden">
+      <span class="verify-banner-text">Confirm your email address to send messages.</span>
+      <button type="button" id="verify-banner-btn" class="verify-banner-btn">Add email</button>
+    </div>
     <div id="reply-bar" class="reply-bar hidden"></div>
     <div id="composer-row">
       <button id="attach-btn" class="icon-btn attach-btn" title="Attach file">＋</button>
@@ -626,6 +630,22 @@ export function mountChatPane(): void {
     <input type="file" id="file-input" hidden />
     <div id="upload-progress" class="hidden"><div id="upload-bar"></div></div>
   `;
+
+  // "Verify your email" nudge: only when the server policy requires it and this
+  // account has not confirmed an address yet — with a direct route to settings.
+  const verifyBanner = document.querySelector('#verify-banner') as HTMLDivElement;
+  const verifyBannerBtn = document.querySelector('#verify-banner-btn') as HTMLButtonElement;
+  verifyBannerBtn.addEventListener('click', () => {
+    void import('./settings').then((m) => m.openSettingsModal());
+  });
+  const renderVerifyBanner = (): void => {
+    const user = store.state.session?.user;
+    const needs = Boolean(store.state.requireVerifiedEmail) && !user?.emailVerified;
+    verifyBanner.classList.toggle('hidden', !needs);
+    verifyBannerBtn.textContent = user?.email ? 'Resend verification' : 'Add email';
+  };
+  store.subscribe(renderVerifyBanner);
+  renderVerifyBanner();
 
   const input = $('#msg-input') as HTMLTextAreaElement;
   const sendBtn = $('#send-btn') as HTMLButtonElement;

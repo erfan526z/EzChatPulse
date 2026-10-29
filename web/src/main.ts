@@ -51,8 +51,9 @@ async function boot(): Promise<void> {
     return;
   }
   try {
-    const { user } = await api.me();
+    const { user, requireVerifiedEmail } = await api.me();
     store.setSession({ token, user });
+    store.setRequireVerifiedEmail(Boolean(requireVerifiedEmail));
     await enterApp();
   } catch {
     setToken(null);

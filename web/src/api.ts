@@ -63,7 +63,7 @@ export interface CaptchaAnswer {
 
 export const api = {
   captcha: () => request<CaptchaChallenge>('/api/captcha'),
-  register: (username: string, displayName: string, password: string, captcha?: CaptchaAnswer) =>
+  register: (username: string, displayName: string, password: string, captcha?: CaptchaAnswer, email?: string) =>
     request<Session>('/api/register', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -71,6 +71,7 @@ export const api = {
         username,
         displayName,
         password,
+        ...(email ? { email } : {}),
         ...(captcha ? { captchaToken: captcha.token, captchaAnswer: captcha.answer } : {}),
       }),
     }),

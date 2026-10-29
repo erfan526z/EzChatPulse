@@ -1656,6 +1656,85 @@ textarea::placeholder {
   color: #ffb3b6;
 }
 
+/* actionable toast (e.g. "Add email" → settings) */
+.toast-actionable {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-right: 10px;
+}
+
+.toast-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.toast-btn {
+  flex: 0 0 auto;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.toast-btn:hover {
+  background: rgba(255, 255, 255, 0.16);
+  border-color: rgba(255, 255, 255, 0.35);
+}
+
+/* "verify your email" banner above the composer */
+.verify-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 8px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: rgba(242, 187, 84, 0.1);
+  border: 1px solid rgba(242, 187, 84, 0.35);
+  font-size: 12.5px;
+  color: #f5d08a;
+}
+
+.verify-banner.hidden {
+  display: none;
+}
+
+.verify-banner-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.verify-banner-btn {
+  flex: 0 0 auto;
+  border: 1px solid rgba(242, 187, 84, 0.5);
+  background: rgba(242, 187, 84, 0.16);
+  color: #ffe0a8;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 5px 11px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.verify-banner-btn:hover {
+  background: rgba(242, 187, 84, 0.28);
+}
+
+/* hint under the signup fields */
+.login-hint {
+  margin: -4px 0 2px;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--text-3);
+}
+
 /* ── Scrollbars ─────────────────────────────────────────────────────── */
 
 ::-webkit-scrollbar {

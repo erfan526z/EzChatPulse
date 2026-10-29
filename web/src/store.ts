@@ -8,6 +8,8 @@ interface State {
   chats: Map<number, UIChat>;
   activeChatId: number | null;
   userMap: Map<number, UserDTO>;
+  /** Server policy: must an account verify its email before sending? */
+  requireVerifiedEmail: boolean;
 }
 
 type Listener = () => void;
@@ -19,6 +21,7 @@ class Store {
     chats: new Map(),
     activeChatId: null,
     userMap: new Map(),
+    requireVerifiedEmail: false,
   };
 
   private listeners = new Set<Listener>();
@@ -39,6 +42,12 @@ class Store {
 
   setSession(s: Session | null): void {
     this.state.session = s;
+    this.notify();
+  }
+
+  setRequireVerifiedEmail(v: boolean): void {
+    if (this.state.requireVerifiedEmail === v) return;
+    this.state.requireVerifiedEmail = v;
     this.notify();
   }
 

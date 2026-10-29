@@ -17,6 +17,8 @@ export function mountLogin(onSuccess: () => void): void {
       <form id="login-form" autocomplete="on">
         <div id="register-fields" class="hidden">
           <input id="f-display" type="text" placeholder="Display name" maxlength="32" autocomplete="nickname" />
+          <input id="f-reg-email" type="email" placeholder="Email (optional — lets you recover your account)" maxlength="254" autocomplete="email" />
+          <p class="login-hint">We'll send one confirmation link. You can add it later in settings.</p>
         </div>
         <input id="f-username" type="text" placeholder="Username" maxlength="32" autocomplete="username" required />
         <input id="f-password" type="password" placeholder="Password (min 8 characters)" minlength="8" autocomplete="current-password" required />
@@ -99,6 +101,7 @@ export function mountLogin(onSuccess: () => void): void {
     const username = (root.querySelector<HTMLInputElement>('#f-username')!).value.trim();
     const password = (root.querySelector<HTMLInputElement>('#f-password')!).value;
     const display = (root.querySelector<HTMLInputElement>('#f-display')!).value.trim();
+    const email = (root.querySelector<HTMLInputElement>('#f-reg-email')!).value.trim();
 
     const captcha =
       challenge && !captchaBox.classList.contains('hidden')
@@ -110,7 +113,7 @@ export function mountLogin(onSuccess: () => void): void {
     submitBtn.textContent = isRegister ? 'Creating…' : 'Signing in…';
     try {
       const session = isRegister
-        ? await api.register(username, display || username, password, captcha)
+        ? await api.register(username, display || username, password, captcha, email || undefined)
         : await api.login(username, password, captcha);
       setToken(session.token);
       store.setSession(session);

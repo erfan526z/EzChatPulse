@@ -1,15 +1,47 @@
-export function toast(message: string, kind: 'error' | 'info' = 'info'): void {
+export interface ToastAction {
+  label: string;
+  onClick: () => void;
+}
+
+/**
+ * Transient toast. Pass `action` to render a button inside it (e.g. "Open
+ * settings") — actionable toasts stay up longer and do not auto-dismiss while
+ * the pointer is over them.
+ */
+export function toast(message: string, kind: 'error' | 'info' = 'info', action?: ToastAction): void {
   const root = document.querySelector('#toast-root');
   if (!root) return;
   const el = document.createElement('div');
-  el.className = `toast toast-${kind}`;
-  el.textContent = message;
-  root.appendChild(el);
-  requestAnimationFrame(() => el.classList.add('show'));
-  setTimeout(() => {
+  el.className = `toast toast-${kind}${action ? ' toast-actionable' : ''}`;
+  const text = document.createElement('span');
+  text.className = 'toast-text';
+  text.textContent = message;
+  el.appendChild(text);
+
+  let hideTimer: ReturnType<typeof setTimeout> | undefined;
+  const dismiss = (): void => {
+    if (hideTimer) clearTimeout(hideTimer);
     el.classList.remove('show');
     setTimeout(() => el.remove(), 300);
-  }, 3200);
+  };
+
+  if (action) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'toast-btn';
+    btn.textContent = action.label;
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      dismiss();
+      action.onClick();
+    });
+    el.appendChild(btn);
+    el.addEventListener('mouseenter', () => hideTimer && clearTimeout(hideTimer));
+  }
+
+  root.appendChild(el);
+  requestAnimationFrame(() => el.classList.add('show'));
+  hideTimer = setTimeout(dismiss, action ? 12000 : 3200);
 }
 
 export function openModal(content: HTMLElement): () => void {
