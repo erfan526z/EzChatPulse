@@ -11,7 +11,7 @@
 | S1 | Email verification | block bot account creation: require a verified email before an account can send messages; `email_verified` column already exists (migration v4), the capture flow is built — needs SMTP creds + a signed token link + resend | toggle "require verified email", unverified-account list, manual verify, resend | 🟡 needs SMTP |
 | S2 | Basic captcha | very simple, **self-hosted** (no third-party, no tracking): server-signed math/hold-to-confirm challenge with a short TTL, applied to registration and to login after N failures | enable/disable, sensitivity (attempts before captcha), captcha-failure counter | 🔜 |
 | S3 | Backup + restore | ✅ **DONE** — WAL-safe online snapshots (db + uploads + manifest) tarred into `data/backups/`, automatic every `BACKUP_INTERVAL_HOURS` (24) keeping `BACKUP_KEEP` (5); restore = safety snapshot → atomic swap → restart | Backup now · list (size/date) · download · delete · restore (double-confirm) | ✅ live |
-| S4 | Search = full-string match only | public user search currently matches substrings (`LIKE %q%`), so anyone can enumerate/harvest the user list letter by letter; restrict non-admins to exact username / exact display-name matches | toggle strict search on/off (admins keep fuzzy matching) | 🔜 **cheapest win** |
+| S4 | Search = full-string match only | ✅ **DONE** — non-admins only match an account by FULL username or FULL display name (case-insensitive); admins keep substring search; LIKE wildcards escaped (`%`/`_` matched literally) | toggle strict search on/off (persisted in `app_settings`, admins keep fuzzy) | ✅ live |
 
 ## Active backlog (features, priority order)
 
@@ -50,6 +50,7 @@
 | 6 | Aug 15 | Delete confirmation, leave/delete group (member.left, last-member auto-delete, admin cascade + chat.deleted) | 71/71, 11/11 live |
 | — | Sep 21 | CP-22 hardening: malformed requests → 400 (shared error handler), no log spam | 79/79 tests |
 | 7 | Oct 29 | **Backups + restore** (S3): WAL-safe snapshots of db+uploads every 24h (keep 5), admin panel section (backup now / download / delete / restore), cold restore with pre-restore safety snapshot | 89/89 tests, 10/10 live incl. a real restore |
+| 8 | Oct 29 | **Strict user search** (S4): non-admins only find accounts by full username/display name (case-insensitive) — closes user enumeration; admins keep substring search; LIKE wildcards escaped; admin-panel toggle | 94/94 tests, 11/11 live |
 
 ## License
 

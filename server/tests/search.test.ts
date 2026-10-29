@@ -126,18 +126,23 @@ test('admin can relax strict search for everyone, and restore it', async () => {
   });
 });
 
-test('LIKE wildcards in the query cannot dump the user list', async () => {
+test('LIKE wildcards in the query are matched literally, not as wildcards', async () => {
   await withAdmin(async () => {
     const ctx = await createTestContext();
     const authed = makeAuthed(ctx);
     try {
       await registerUser(ctx, 'alice', 'Alice', 'password123');
       await registerUser(ctx, 'bob', 'Bob', 'password123');
+      await registerUser(ctx, 'under_score', 'Under Score', 'password123');
       const admin = await registerUser(ctx, 'admin', 'Admin', 'password123');
 
-      // loose mode (admin) — a bare % or _ must be treated literally, not as a wildcard
+      // "%" matches no one (nobody has a literal percent sign) — a wildcard would return everyone
       assert.deepEqual(await search(authed, admin.token, '%'), []);
-      assert.deepEqual(await search(authed, admin.token, '_'), []);
+
+      // "_" must match only the account whose name literally contains an underscore,
+      // not "any single character" (which would return every user)
+      assert.deepEqual((await search(authed, admin.token, '_')).map((u) => u.username), ['under_score']);
+      assert.deepEqual((await search(authed, admin.token, 'under_score')).map((u) => u.username), ['under_score']);
     } finally {
       await ctx.close();
     }
