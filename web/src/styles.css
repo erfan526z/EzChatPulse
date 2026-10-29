@@ -1644,6 +1644,9 @@ textarea::placeholder {
   transition: all 0.25s;
   backdrop-filter: blur(10px);
   max-width: min(420px, 90vw);
+  /* the root is click-through so toasts never block the UI; the toast itself
+     must accept clicks (actionable toasts, selecting text) */
+  pointer-events: auto;
 }
 
 .toast.show {

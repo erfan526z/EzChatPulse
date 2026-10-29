@@ -32,8 +32,9 @@
 | CP-20 | On phone, Enter sends instead of inserting a newline | 🔸 minor | bug | ✅ verified | composer / mobile |
 | CP-21 | Group sender-name gradient spans the bubble width, not the name | 🔹 cosmetic | bug | ✅ verified | group bubbles |
 | CP-22 | Malformed requests (scanner probes, bad JSON) return 500 + log spam | 🔸 minor | robustness | ✅ verified | error handling |
+| CP-23 | Toasts were click-through (`#toast-root` had `pointer-events:none` with no re-enable), so the new actionable "Open settings" button could not be clicked | 🔸 minor | UI | ✅ verified | S1 UX round |
 
-**22/22 closed.** The next CP number to use: **CP-23**.
+**23/23 closed.** The next CP number to use: **CP-24**.
 
 ## Open issues
 

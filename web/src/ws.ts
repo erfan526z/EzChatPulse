@@ -120,7 +120,7 @@ class ChatSocket {
           // Actionable errors: send the user straight to the place that fixes it.
           if (msg.code === 'EMAIL_NOT_VERIFIED') {
             toast(msg.message ?? 'Confirm your email address to send messages', 'error', {
-              label: 'Add email',
+              label: 'Open settings',
               onClick: () => void import('./ui/settings').then((m) => m.openSettingsModal()),
             });
             return;

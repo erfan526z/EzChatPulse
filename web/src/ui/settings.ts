@@ -122,7 +122,7 @@ export function openSettingsModal(): void {
   });
   const emailSection = document.createElement('section');
   emailSection.className = 'set-section';
-  emailSection.append(emailHint, emailField, emailSave, emailStatus);
+  emailSection.append(emailHint, emailField, emailSave, emailStatus, emailResend);
   root.appendChild(emailSection);
 
   // ── password ──
