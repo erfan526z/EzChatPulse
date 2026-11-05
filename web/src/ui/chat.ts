@@ -107,11 +107,13 @@ export function mountChatPane(): void {
       content.textContent = msg.text ?? '';
     } else if (msg.kind === 'image' && msg.file) {
       const img = document.createElement('img');
-      img.src = msg.file.url;
       img.alt = msg.file.name;
       img.loading = 'lazy';
       img.addEventListener('click', () => openLightbox(msg.file!.url, msg.file!.name));
-      void authedFileUrl(msg.file.url)
+      // Bubbles render the thumbnail; the lightbox above opens the original.
+      // No `img.src` before the authed fetch — a bare URL has no Authorization
+      // header, so it would answer 401 and trigger a second request.
+      void authedFileUrl(msg.file.thumbUrl ?? msg.file.url)
         .then((u) => {
           img.src = u;
         })

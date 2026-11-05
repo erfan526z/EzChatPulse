@@ -7,6 +7,7 @@ import { config } from '../config.js';
 import { getDb } from '../db.js';
 import { requireAuth } from '../auth.js';
 import { storeUpload, getFileRow } from '../services/files.js';
+import { ensureThumb, thumbMime } from '../services/thumbs.js';
 
 const router = Router();
 
@@ -26,7 +27,12 @@ router.post('/upload', requireAuth, upload.single('file'), wrap(async (req, res)
     res.status(400).json({ error: 'No file uploaded (multipart field name must be "file")' });
     return;
   }
-  const file = storeUpload(getDb(), req.userId, req.file);
+  const db = getDb();
+  const file = storeUpload(db, req.userId, req.file);
+  // Build the bubble-sized version now so the first render is instant; failure
+  // is harmless (the download route regenerates lazily).
+  const row = getFileRow(db, file.id);
+  if (row) await ensureThumb(db, row);
   res.status(201).json({ file });
 }));
 
@@ -67,9 +73,17 @@ router.get('/files/:id', requireAuth, wrap(async (req, res) => {
     return;
   }
 
-  const isImage = file.mime.startsWith('image/');
-  res.setHeader('Content-Type', file.mime);
-  res.setHeader('Content-Length', String(file.size));
+  // `?thumb=1` → bubble-sized webp (generated on first use, so older uploads
+  // heal automatically). Falls back to the original when there is no thumbnail.
+  const wantThumb = req.query.thumb === '1';
+  const thumb = wantThumb ? await ensureThumb(db, file) : null;
+  const servePath = thumb?.absPath ?? abs;
+  const serveSize = thumb?.size ?? file.size;
+  const contentType = thumb ? thumbMime() : file.mime;
+  const isImage = contentType.startsWith('image/');
+
+  res.setHeader('Content-Type', contentType);
+  res.setHeader('Content-Length', String(serveSize));
   res.setHeader(
     'Content-Disposition',
     `${isImage ? 'inline' : 'attachment'}; filename*=UTF-8''${encodeURIComponent(file.name)}`,
@@ -77,8 +91,8 @@ router.get('/files/:id', requireAuth, wrap(async (req, res) => {
   // A file row is one immutable upload (content-addressed by sha256), so the
   // bytes behind this URL never change: let the browser keep them forever and
   // skip re-downloading images on every chat open. `private` because access is
-  // per-account.
-  const etag = `"${file.sha256}"`;
+  // per-account. The thumbnail variant gets its own validator.
+  const etag = `"${file.sha256}${thumb ? '-thumb' : ''}"`;
   res.setHeader('ETag', etag);
   res.setHeader('Cache-Control', 'private, max-age=31536000, immutable');
   if (req.headers['if-none-match'] === etag) {
@@ -86,7 +100,7 @@ router.get('/files/:id', requireAuth, wrap(async (req, res) => {
     res.status(304).end();
     return;
   }
-  fs.createReadStream(abs).pipe(res);
+  fs.createReadStream(servePath).pipe(res);
 }));
 
 export default router;

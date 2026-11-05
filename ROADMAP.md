@@ -22,17 +22,16 @@
 
 | # | Feature | Notes | Status |
 |---|---------|-------|--------|
-| 1 | Server-side image thumbnails | HAR showed a **1.07 MB PNG** and a **560 KB JPEG** rendered in chat bubbles. Generate a ~40 KB thumbnail (sharp) on upload; serve the original only in the lightbox. Biggest remaining win. | 🔜 next |
-| 2 | Reconnect catch-up | The HAR captured **two WS handshakes** (a drop + reconnect) and there is no resync: broadcasts during the gap are lost and the pane never refetches. On reopen: refetch chats + open chat. | 🔜 next |
-| 3 | Client fetch hygiene | Dedupe in-flight file fetches (the HAR had 1×401 + 2 cancelled `/api/files` requests from duplicates) and stop re-validating message lists the client already has (3× 304 at 1–3 s each). | 🔜 next |
-| 4 | Profile image + user info popup | click a chat header → user card (avatar, name, username); avatar upload reuses the existing file infra. Friends asked for this in chat | 🔜 |
-| 5 | UI major overhaul | the interface reads as generic/AI-template: gradient-everywhere, glass blur, purple accents, emoji-as-icons, default type scale. Wanted: a real design identity — deliberate type scale + spacing system, one signature accent (not gradients on everything), consistent icon set, purposeful motion, better empty states, light/dark with real contrast tuning | 🔜 |
-| 6 | Message search (FTS) | server-side full-text search over messages (SQLite FTS5); sidebar search also covers message content | 🟡 |
-| 7 | GIF support "like Telegram" | GIF **search** needs a provider decision (Tenor/Giphy API key) + quick-send UI; sending GIFs as files already works | 🟡 needs decision |
-| 8 | Per-user storage quota + file management | per-user space (upload cap exists), admin-editable quota, add/remove/replace files, distinct shared-file bubble, per-file public/private flag | 🟡 |
-| 9 | Notifications (Web Push) | service worker + VAPID push for new messages when the tab is closed | 🟡 |
-| 10 | Channels + bots | broadcast channels; bot API | 💤 |
-| 11 | Android app | separate project; cheapest first step = PWA wrapper around the existing web client | 💤 |
+| 1 | Reconnect catch-up | The HAR captured **two WS handshakes** (a drop + reconnect) and there is no resync: broadcasts during the gap are lost and the pane never refetches. On reopen: refetch chats + open chat. | 🔜 next |
+| 2 | Client fetch hygiene | Dedupe in-flight file fetches (the HAR had 1×401 + 2 cancelled `/api/files` requests from duplicates) and stop re-validating message lists the client already has (3× 304 at 1–3 s each). | 🔜 next |
+| 3 | Profile image + user info popup | click a chat header → user card (avatar, name, username, bio, common groups); avatar upload reuses the existing file infra. Friends asked for this in chat | 🔜 next |
+| 4 | UI major overhaul | the interface reads as generic/AI-template: gradient-everywhere, glass blur, purple accents, emoji-as-icons, default type scale. Wanted: a real design identity — deliberate type scale + spacing system, one signature accent (not gradients on everything), consistent icon set, purposeful motion, better empty states, light/dark with real contrast tuning | 🔜 |
+| 5 | Message search (FTS) | server-side full-text search over messages (SQLite FTS5); sidebar search also covers message content | 🟡 |
+| 6 | GIF support "like Telegram" | GIF **search** needs a provider decision (Tenor/Giphy API key) + quick-send UI; sending GIFs as files already works | 🟡 needs decision |
+| 7 | Per-user storage quota + file management | per-user space (upload cap exists), admin-editable quota, add/remove/replace files, distinct shared-file bubble, per-file public/private flag | 🟡 |
+| 8 | Notifications (Web Push) | service worker + VAPID push for new messages when the tab is closed | 🟡 |
+| 9 | Channels + bots | broadcast channels; bot API | 💤 |
+| 10 | Android app | separate project; cheapest first step = PWA wrapper around the existing web client | 💤 |
 
 ## Parked / concerns
 
@@ -60,6 +59,7 @@
 | 9 | Oct 29 | **Basic captcha** (S2): signed single-use arithmetic challenge as SVG; enforced on registration + after N failed logins; admin toggle, threshold, counters; migration v5 | 103/103 tests, 14/14 live browser |
 | 10 | Oct 29 | **Email verification** (S1): Resend + verified domain, HMAC link (24h), auto-send on signup/email-set, resend cooldown, `/verify` page, admin require-verified toggle that gates sending, manual verify, counters; migration v6 | 111/111 tests, 12/12 live |
 | 11 | Nov 5 | **Perf/Caching** (from a HAR capture): uploaded files are immutable (`private, max-age=31536000`, sha256 `ETag`, `304` on revalidation); hashed build assets cached a year (`immutable`); static serving extracted to `static.ts`; `index.html` always revalidates | 115/115 tests |
+| 12 | Nov 5 | **Image thumbnails**: sharp generates a 512 px webp on upload (lazy for older files), served via `/api/files/:id?thumb=1` with its own ETag; bubbles use it, the lightbox keeps the original; non-image/SVG/GIF untouched; shared `fileDTO()`; bubbles no longer fire an unauthenticated 401 request. Backfill: 10 images, **~6.9 MB of payload removed** (1.07 MB PNG → 14 KiB) | 120/120 tests, live |
 
 ## License
 

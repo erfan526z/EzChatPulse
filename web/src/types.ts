@@ -25,6 +25,8 @@ export interface FileDTO {
   mime: string;
   size: number;
   url: string;
+  /** bubble-sized version (present for image types) */
+  thumbUrl?: string;
 }
 
 export interface MessageDTO {

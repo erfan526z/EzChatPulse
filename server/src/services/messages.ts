@@ -1,14 +1,9 @@
 import type { Db } from '../db.js';
 import { BadRequest, Forbidden, NotFound } from '../errors.js';
 import { assertMember, isAdmin } from './membership.js';
+import { fileDTO, type FileDTO } from './files.js';
 
-export interface FileDTO {
-  id: number;
-  name: string;
-  mime: string;
-  size: number;
-  url: string;
-}
+export type { FileDTO };
 
 export interface MessageDTO {
   id: number;
@@ -59,7 +54,7 @@ function rowToDTO(row: MessageRow): MessageDTO {
     editedAt: row.edited_at,
     deletedAt: row.deleted_at,
     file: row.f_id
-      ? { id: row.f_id, name: row.f_name!, mime: row.f_mime!, size: row.f_size!, url: `/api/files/${row.f_id}` }
+      ? fileDTO({ id: row.f_id, name: row.f_name!, mime: row.f_mime!, size: row.f_size! })
       : null,
   };
 }

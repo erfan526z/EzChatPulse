@@ -64,6 +64,17 @@ const migrations: Array<{ version: number; up: (db: Db) => void }> = [
       }
     },
   },
+  {
+    // v7 — image thumbnails: cached small version of an uploaded image
+    version: 7,
+    up(db) {
+      const cols = db.prepare('PRAGMA table_info(files)').all() as Array<{ name: string }>;
+      if (!cols.some((c) => c.name === 'thumb_path')) {
+        db.exec('ALTER TABLE files ADD COLUMN thumb_path TEXT');
+        db.exec('ALTER TABLE files ADD COLUMN thumb_size INTEGER');
+      }
+    },
+  },
 ];
 
 function runMigrations(db: Db): void {
