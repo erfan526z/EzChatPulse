@@ -1,11 +1,13 @@
 import { store } from './store';
 import { getToken } from './api';
-import { loadChatDetail } from './actions';
+import { loadChatDetail, resyncAfterReconnect } from './actions';
 
 class ChatSocket {
   private ws: WebSocket | null = null;
   private reconnectDelay = 1000;
   private closed = false;
+  /** true once the server has acknowledged a session — later 'ready' = reconnect */
+  private hasConnected = false;
 
   connect(): void {
     this.closed = false;
@@ -42,6 +44,11 @@ class ChatSocket {
     switch (msg.t) {
       case 'ready':
         store.setConnection('online');
+        // A second 'ready' means the socket dropped and came back: catch up on
+        // whatever was broadcast during the gap (a VPN blip looks like a freeze
+        // otherwise).
+        if (this.hasConnected) void resyncAfterReconnect();
+        this.hasConnected = true;
         break;
 
       case 'msg.ack': {
