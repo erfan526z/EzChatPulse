@@ -142,3 +142,25 @@ test('static: no build on disk → mount reports false (dev mode)', () => {
   const app = express();
   assert.equal(mountWebClient(app, path.join(os.tmpdir(), 'does-not-exist-' + Date.now())), false);
 });
+
+// ── 3. JSON API responses are never cached; file streaming overrides that ──
+
+test('API responses are no-store, but immutable files keep their own policy', async () => {
+  const ctx = await createTestContext();
+  try {
+    const alice = await registerUser(ctx, 'alice', 'Alice', 'password123');
+    const base = `http://127.0.0.1:${ctx.port}`;
+
+    const chats = await fetch(`${base}/api/chats`, { headers: { authorization: `Bearer ${alice.token}` } });
+    assert.equal(chats.status, 200);
+    assert.equal(chats.headers.get('cache-control'), 'no-store', 'live user data must not be cached');
+
+    const form = uploadForm(alice.token, 'pic.png', 'image/png', Buffer.from('bytes'));
+    const up = await fetch(`${base}/api/upload`, { method: 'POST', headers: form.headers, body: form.body });
+    const { file } = (await up.json()) as any;
+    const dl = await fetch(`${base}${file.url}`, { headers: { authorization: `Bearer ${alice.token}` } });
+    assert.match(dl.headers.get('cache-control') ?? '', /immutable/, 'file route must override no-store');
+  } finally {
+    await ctx.close();
+  }
+});

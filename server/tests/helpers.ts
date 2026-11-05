@@ -11,6 +11,7 @@ import fileRoutes from '../src/api/file_routes.js';
 import adminRoutes from '../src/api/admin_routes.js';
 import captchaRoutes from '../src/api/captcha_routes.js';
 import { handleConnection } from '../src/ws/handler.js';
+import { noStoreApi } from '../src/api-cache.js';
 
 export interface TestContext {
   app: express.Express;
@@ -29,6 +30,7 @@ export function createTestContext(): Promise<TestContext> {
 
   const app = express();
   app.use(express.json({ limit: '100kb' }));
+  app.use('/api', noStoreApi); // same policy as production
   app.get('/api/health', (_req, res) => res.json({ ok: true }));
   app.use('/api', authRoutes);
   app.use('/api', chatRoutes);

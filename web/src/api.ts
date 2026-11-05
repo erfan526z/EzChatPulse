@@ -32,16 +32,26 @@ export interface CaptchaChallenge {
 // <img>/<a> can't send Authorization headers, so files are fetched with
 // the token and exposed as object URLs (cached per file URL).
 const blobCache = new Map<string, string>();
+/** fetches already running, so N renders of one image cost one request */
+const blobInFlight = new Map<string, Promise<string>>();
 
 export async function authedFileUrl(url: string): Promise<string> {
   const cached = blobCache.get(url);
   if (cached) return cached;
-  const res = await fetch(url, { headers: { authorization: `Bearer ${getToken()}` } });
-  if (!res.ok) throw new ApiError(res.status, 'Failed to load file');
-  const blob = await res.blob();
-  const objUrl = URL.createObjectURL(blob);
-  blobCache.set(url, objUrl);
-  return objUrl;
+
+  const running = blobInFlight.get(url);
+  if (running) return running;
+
+  const job = (async () => {
+    const res = await fetch(url, { headers: { authorization: `Bearer ${getToken()}` } });
+    if (!res.ok) throw new ApiError(res.status, 'Failed to load file');
+    const objUrl = URL.createObjectURL(await res.blob());
+    blobCache.set(url, objUrl);
+    return objUrl;
+  })().finally(() => blobInFlight.delete(url));
+
+  blobInFlight.set(url, job);
+  return job;
 }
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {

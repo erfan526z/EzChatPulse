@@ -57,10 +57,23 @@ export async function openChat(chatId: number): Promise<void> {
   }
 }
 
+/** Page cursors already fetched per chat: scrolling up and down again must not
+ *  re-request a page the client already holds (that was 3× 304 at 1–3 s in the
+ *  HAR, each a full round trip for data we had). */
+const loadedBefore = new Map<number, Set<number>>();
+
 /** Load one page of history (newest page first, or older than `before`). */
 export async function loadMore(chatId: number, before?: number): Promise<void> {
   const chat = store.state.chats.get(chatId);
   if (!chat || chat.loadingHistory || !chat.hasMore) return;
+
+  if (before !== undefined) {
+    const seen = loadedBefore.get(chatId);
+    if (seen?.has(before)) return;
+    if (seen) seen.add(before);
+    else loadedBefore.set(chatId, new Set([before]));
+  }
+
   chat.loadingHistory = true;
   store.touch();
   try {
@@ -73,6 +86,10 @@ export async function loadMore(chatId: number, before?: number): Promise<void> {
       store.addMessage(chatId, m, before ? 'prepend' : 'append');
     }
     chat.hasMore = messages.length >= 50;
+  } catch (err) {
+    // the page was not actually loaded — forget the cursor so a retry works
+    if (before !== undefined) loadedBefore.get(chatId)?.delete(before);
+    console.warn('loadMore failed', err);
   } finally {
     chat.loadingHistory = false;
     store.touch();

@@ -22,16 +22,14 @@
 
 | # | Feature | Notes | Status |
 |---|---------|-------|--------|
-| 1 | Client fetch hygiene | Dedupe in-flight file fetches and stop re-validating message lists the client already has (3× 304 at 1–3 s each in the HAR). | 🔜 next |
-| 2 | Profile image + user info popup | click a chat header → user card (avatar, name, username, bio, common groups); avatar upload reuses the existing file infra. Friends asked for this in chat | 🔜 next |
-| 3 | UI major overhaul | the interface reads as generic/AI-template: gradient-everywhere, glass blur, purple accents, emoji-as-icons, default type scale. Wanted: a real design identity — deliberate type scale + spacing system, one signature accent (not gradients on everything), consistent icon set, purposeful motion, better empty states, light/dark with real contrast tuning | 🔜 |
-| 4 | Message search (FTS) | server-side full-text search over messages (SQLite FTS5); sidebar search also covers message content | 🟡 |
-| 5 | GIF support "like Telegram" | GIF **search** needs a provider decision (Tenor/Giphy API key) + quick-send UI; sending GIFs as files already works | 🟡 needs decision |
-| 6 | Per-user storage quota + file management | per-user space (upload cap exists), admin-editable quota, add/remove/replace files, distinct shared-file bubble, per-file public/private flag | 🟡 |
-| 7 | Notifications (Web Push) | service worker + VAPID push for new messages when the tab is closed | 🟡 |
-| 8 | Channels + bots | broadcast channels; bot API | 💤 |
-| 9 | Android app | separate project; cheapest first step = PWA wrapper around the existing web client | 💤 |
-## Parked / concerns
+| 1 | Profile image + user info popup | click a chat header → user card (avatar, name, username, bio, common groups); avatar upload reuses the existing file infra. Friends asked for this in chat | 🔜 next |
+| 2 | UI major overhaul | the interface reads as generic/AI-template: gradient-everywhere, glass blur, purple accents, emoji-as-icons, default type scale. Wanted: a real design identity — deliberate type scale + spacing system, one signature accent (not gradients on everything), consistent icon set, purposeful motion, better empty states, light/dark with real contrast tuning | 🔜 |
+| 3 | Message search (FTS) | server-side full-text search over messages (SQLite FTS5); sidebar search also covers message content | 🟡 |
+| 4 | GIF support "like Telegram" | GIF **search** needs a provider decision (Tenor/Giphy API key) + quick-send UI; sending GIFs as files already works | 🟡 needs decision |
+| 5 | Per-user storage quota + file management | per-user space (upload cap exists), admin-editable quota, add/remove/replace files, distinct shared-file bubble, per-file public/private flag | 🟡 |
+| 6 | Notifications (Web Push) | service worker + VAPID push for new messages when the tab is closed | 🟡 |
+| 7 | Channels + bots | broadcast channels; bot API | 💤 |
+| 8 | Android app | separate project; cheapest first step = PWA wrapper around the existing web client | 💤 |## Parked / concerns
 
 | Item | Note |
 |------|------|
@@ -59,6 +57,7 @@
 | 11 | Nov 5 | **Perf/Caching** (from a HAR capture): uploaded files are immutable (`private, max-age=31536000`, sha256 `ETag`, `304` on revalidation); hashed build assets cached a year (`immutable`); static serving extracted to `static.ts`; `index.html` always revalidates | 115/115 tests |
 | 12 | Nov 5 | **Image thumbnails**: sharp generates a 512 px webp on upload (lazy for older files), served via `/api/files/:id?thumb=1` with its own ETag; bubbles use it, the lightbox keeps the original; non-image/SVG/GIF untouched; shared `fileDTO()`; bubbles no longer fire an unauthenticated 401 request. Backfill: 10 images, **~6.9 MB of payload removed** (1.07 MB PNG → 14 KiB) | 120/120 tests, live |
 | 13 | Nov 5 | **Reconnect catch-up**: a second `ready` frame (socket came back) now re-fetches the chat list and the open chat, merging by id so scroll and pending sends survive — a dropped socket no longer leaves the pane silently stale | local browser: gap message appears once after reconnect |
+| 14 | Nov 5 | **Client fetch hygiene**: in-flight file fetches are de-duplicated (N renders of one image = 1 request); history pages are tracked per chat so scrolling up/down no longer re-requests a page the client holds; every `/api` JSON response is `Cache-Control: no-store` (no more 304 round trips for live data), while file streaming still overrides it with `immutable` | 121/121 tests, local browser: 1 page request on open, 1 on first scroll-up, 0 on repeat |
 
 ## License
 

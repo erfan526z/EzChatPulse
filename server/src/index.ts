@@ -17,9 +17,14 @@ import { flushAll } from './presence.js';
 import { startBackupSchedule } from './services/backup.js';
 import { verifyEmailToken } from './services/verification.js';
 import { mountWebClient } from './static.js';
+import { noStoreApi } from './api-cache.js';
 
 const app = express();
 app.use(express.json({ limit: '100kb' }));
+
+// API answers are live, per-user data: never let a browser or CDN cache them
+// (routes that stream immutable files set their own Cache-Control afterwards).
+app.use('/api', noStoreApi);
 
 // Health (no auth)
 app.get('/api/health', (_req, res) => {
