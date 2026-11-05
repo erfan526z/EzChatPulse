@@ -16,6 +16,7 @@ import { handleConnection } from './ws/handler.js';
 import { flushAll } from './presence.js';
 import { startBackupSchedule } from './services/backup.js';
 import { verifyEmailToken } from './services/verification.js';
+import { mountWebClient } from './static.js';
 
 const app = express();
 app.use(express.json({ limit: '100kb' }));
@@ -80,15 +81,10 @@ app.get('/verify', (req, res) => {
 </div></body></html>`);
 });
 
-// Serve the built web client (single deployment: `npm run build && npm start`)
+// Serve the built web client (single deployment: `npm run build && npm start`).
+// Hashed assets are immutable; index.html always revalidates.
 const webDist = path.resolve(import.meta.dirname, '../../web/dist');
-if (fs.existsSync(webDist)) {
-  app.use(express.static(webDist));
-  app.get('*', (req, res, next) => {
-    if (req.path.startsWith('/api')) return next();
-    res.sendFile(path.join(webDist, 'index.html'));
-  });
-}
+mountWebClient(app, webDist);
 
 // Central error handler: AppError → its status, client faults → 400, else 500
 app.use(errorHandler);

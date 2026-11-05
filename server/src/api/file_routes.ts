@@ -74,6 +74,18 @@ router.get('/files/:id', requireAuth, wrap(async (req, res) => {
     'Content-Disposition',
     `${isImage ? 'inline' : 'attachment'}; filename*=UTF-8''${encodeURIComponent(file.name)}`,
   );
+  // A file row is one immutable upload (content-addressed by sha256), so the
+  // bytes behind this URL never change: let the browser keep them forever and
+  // skip re-downloading images on every chat open. `private` because access is
+  // per-account.
+  const etag = `"${file.sha256}"`;
+  res.setHeader('ETag', etag);
+  res.setHeader('Cache-Control', 'private, max-age=31536000, immutable');
+  if (req.headers['if-none-match'] === etag) {
+    res.removeHeader('Content-Length');
+    res.status(304).end();
+    return;
+  }
   fs.createReadStream(abs).pipe(res);
 }));
 
