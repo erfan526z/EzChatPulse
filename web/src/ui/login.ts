@@ -117,6 +117,15 @@ export function mountLogin(onSuccess: () => void): void {
         : await api.login(username, password, captcha);
       setToken(session.token);
       store.setSession(session);
+      // The auth response carries the PUBLIC profile (no email). Hydrate the
+      // private one so settings shows the account's real email/verification state.
+      try {
+        const me = await api.me();
+        store.setUser(me.user);
+        store.setRequireVerifiedEmail(Boolean(me.requireVerifiedEmail));
+      } catch {
+        /* non-fatal: the app still works, settings falls back to "no email" */
+      }
       onSuccess();
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Something went wrong';
