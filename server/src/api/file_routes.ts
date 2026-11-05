@@ -62,7 +62,18 @@ router.get('/files/:id', requireAuth, wrap(async (req, res) => {
        WHERE m.file_id = ? LIMIT 1`,
     )
     .get(req.userId, fileId);
-  if (!isOwner && !ref) {
+  // A profile picture is not attached to a message, so it needs its own rule:
+  // visible to anyone who shares a chat with its owner (the same people who are
+  // allowed to open that profile).
+  const avatarOf = db
+    .prepare(
+      `SELECT u.id FROM users u
+       JOIN chat_members mine ON mine.user_id = ?
+       JOIN chat_members theirs ON theirs.chat_id = mine.chat_id AND theirs.user_id = u.id
+       WHERE u.avatar_file_id = ? LIMIT 1`,
+    )
+    .get(req.userId, fileId);
+  if (!isOwner && !ref && !avatarOf) {
     res.status(403).json({ error: 'You do not have access to this file' });
     return;
   }

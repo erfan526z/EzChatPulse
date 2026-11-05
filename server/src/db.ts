@@ -75,6 +75,17 @@ const migrations: Array<{ version: number; up: (db: Db) => void }> = [
       }
     },
   },
+  {
+    // v8 — profiles: short bio + profile picture
+    version: 8,
+    up(db) {
+      const cols = db.prepare('PRAGMA table_info(users)').all() as Array<{ name: string }>;
+      if (!cols.some((c) => c.name === 'bio')) {
+        db.exec('ALTER TABLE users ADD COLUMN bio TEXT');
+        db.exec('ALTER TABLE users ADD COLUMN avatar_file_id INTEGER REFERENCES files(id)');
+      }
+    },
+  },
 ];
 
 function runMigrations(db: Db): void {

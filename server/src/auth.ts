@@ -13,23 +13,38 @@ export interface UserDTO {
   username: string;
   displayName: string;
   createdAt: number;
+  /** profile picture, served through the (thumbnailed) file route; null if unset */
+  avatarUrl: string | null;
 }
 
 /** Private profile shape — only ever returned to the user themselves. */
 export interface PrivateUser extends UserDTO {
   email: string | null;
   emailVerified: boolean;
+  bio: string | null;
 }
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+export const BIO_MAX = 200;
+
+export function avatarUrlOf(fileId: number | null | undefined): string | null {
+  return fileId ? `/api/files/${fileId}?thumb=1` : null;
+}
 
 function toDTO(row: {
   id: number;
   username: string;
   display_name: string;
   created_at: number;
+  avatar_file_id?: number | null;
 }): UserDTO {
-  return { id: row.id, username: row.username, displayName: row.display_name, createdAt: row.created_at };
+  return {
+    id: row.id,
+    username: row.username,
+    displayName: row.display_name,
+    createdAt: row.created_at,
+    avatarUrl: avatarUrlOf(row.avatar_file_id),
+  };
 }
 
 export function toPrivateDTO(row: {
@@ -39,12 +54,35 @@ export function toPrivateDTO(row: {
   created_at: number;
   email: string | null;
   email_verified: number;
+  bio?: string | null;
+  avatar_file_id?: number | null;
 }): PrivateUser {
   return {
     ...toDTO(row),
     email: row.email ?? null,
     emailVerified: row.email_verified === 1,
+    bio: row.bio ?? null,
   };
+}
+
+/** Update the free-text bio (trimmed, capped). Empty string clears it. */
+export function setBio(db: Db, userId: number, bio: string): void {
+  const clean = bio.trim();
+  if (clean.length > BIO_MAX) throw new BadRequest(`bio must be at most ${BIO_MAX} characters`);
+  db.prepare('UPDATE users SET bio = ? WHERE id = ?').run(clean || null, userId);
+}
+
+/** Point the avatar at one of the user's own image files, or clear it with null. */
+export function setAvatar(db: Db, userId: number, fileId: number | null): void {
+  if (fileId !== null) {
+    const file = db.prepare('SELECT id, owner_id, mime FROM files WHERE id = ?').get(fileId) as
+      | { id: number; owner_id: number; mime: string }
+      | undefined;
+    if (!file) throw new BadRequest('File not found');
+    if (file.owner_id !== userId) throw new BadRequest('You can only use a file you uploaded');
+    if (!file.mime.startsWith('image/')) throw new BadRequest('Avatar must be an image');
+  }
+  db.prepare('UPDATE users SET avatar_file_id = ? WHERE id = ?').run(fileId, userId);
 }
 
 export function isValidEmail(email: string): boolean {
@@ -90,9 +128,9 @@ export function login(
   password: string,
 ): { token: string; user: UserDTO } {
   const row = db
-    .prepare('SELECT id, username, display_name, password_hash, created_at FROM users WHERE username = ?')
+    .prepare('SELECT id, username, display_name, password_hash, created_at, avatar_file_id FROM users WHERE username = ?')
     .get(username) as
-    | { id: number; username: string; display_name: string; password_hash: string; created_at: number }
+    | { id: number; username: string; display_name: string; password_hash: string; created_at: number; avatar_file_id: number | null }
     | undefined;
 
   if (!row) throw new Unauthorized('Invalid username or password');
@@ -106,8 +144,10 @@ export function login(
 // ── Lookups ────────────────────────────────────────────────────────────
 export function getUserById(db: Db, id: number): UserDTO | null {
   const row = db
-    .prepare('SELECT id, username, display_name, created_at FROM users WHERE id = ?')
-    .get(id) as { id: number; username: string; display_name: string; created_at: number } | undefined;
+    .prepare('SELECT id, username, display_name, created_at, avatar_file_id FROM users WHERE id = ?')
+    .get(id) as
+    | { id: number; username: string; display_name: string; created_at: number; avatar_file_id: number | null }
+    | undefined;
   return row ? toDTO(row) : null;
 }
 
@@ -138,9 +178,9 @@ export function changePassword(db: Db, userId: number, current: string, next: st
  */
 export function setEmail(db: Db, userId: number, email: string): PrivateUser {
   const row = db
-    .prepare('SELECT id, username, display_name, created_at, email, email_verified FROM users WHERE id = ?')
+    .prepare('SELECT id, username, display_name, created_at, email, email_verified, bio, avatar_file_id FROM users WHERE id = ?')
     .get(userId) as
-    | { id: number; username: string; display_name: string; created_at: number; email: string | null; email_verified: number }
+    | { id: number; username: string; display_name: string; created_at: number; email: string | null; email_verified: number; bio: string | null; avatar_file_id: number | null }
     | undefined;
   if (!row) throw new Unauthorized('User not found');
   if (row.email) throw new BadRequest('Email is already set and cannot be changed');
@@ -153,9 +193,9 @@ export function setEmail(db: Db, userId: number, email: string): PrivateUser {
 /** Private profile (with email) — only for /api/me responses to the user themselves. */
 export function getPrivateUser(db: Db, id: number): PrivateUser | null {
   const row = db
-    .prepare('SELECT id, username, display_name, created_at, email, email_verified FROM users WHERE id = ?')
+    .prepare('SELECT id, username, display_name, created_at, email, email_verified, bio, avatar_file_id FROM users WHERE id = ?')
     .get(id) as
-    | { id: number; username: string; display_name: string; created_at: number; email: string | null; email_verified: number }
+    | { id: number; username: string; display_name: string; created_at: number; email: string | null; email_verified: number; bio: string | null; avatar_file_id: number | null }
     | undefined;
   return row ? toPrivateDTO(row) : null;
 }
@@ -174,8 +214,14 @@ export function searchUsers(db: Db, query: string, opts: { strict?: boolean } = 
   if (!q) return [];
   const strict = opts.strict !== false;
 
-  type Row = { id: number; username: string; display_name: string; created_at: number };
-  const sql = 'SELECT id, username, display_name, created_at FROM users WHERE ';
+  type Row = {
+    id: number;
+    username: string;
+    display_name: string;
+    created_at: number;
+    avatar_file_id: number | null;
+  };
+  const sql = 'SELECT id, username, display_name, created_at, avatar_file_id FROM users WHERE ';
   const order = ' ORDER BY username LIMIT 20';
 
   let rows: Row[];

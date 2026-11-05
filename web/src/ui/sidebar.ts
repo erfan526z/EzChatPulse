@@ -30,7 +30,7 @@ export function mountSidebar(onSelect: (chatId: number) => void): void {
     const session = store.state.session;
     if (!session) return;
     meChip.innerHTML = '';
-    meChip.appendChild(avatarEl(session.user.id, session.user.displayName, 36));
+    meChip.appendChild(avatarEl(session.user.id, session.user.displayName, 36, session.user.avatarUrl));
     const span = document.createElement('span');
     span.className = 'me-name';
     span.textContent = session.user.displayName;
@@ -47,10 +47,10 @@ export function mountSidebar(onSelect: (chatId: number) => void): void {
     const me = store.state.session?.user.id;
     const title = store.chatTitle(chat);
 
-    const avatarId =
-      chat.type === 'private' ? (chat.members.find((m) => m.userId !== me)?.userId ?? chat.id) : chat.id;
+    const peer = chat.type === 'private' ? chat.members.find((m) => m.userId !== me) : undefined;
+    const avatarId = peer?.userId ?? chat.id;
     const avatarName = chat.type === 'private' ? title : chat.name ?? 'G';
-    const avatar = avatarEl(avatarId, avatarName, 46);
+    const avatar = avatarEl(avatarId, avatarName, 46, peer?.avatarUrl);
     if (chat.type === 'group') avatar.classList.add('group-avatar');
 
     // presence dot for private chats
@@ -125,7 +125,7 @@ export function mountSidebar(onSelect: (chatId: number) => void): void {
   function userResultRow(user: UserDTO): HTMLElement {
     const row = document.createElement('div');
     row.className = 'chat-item search-user';
-    row.appendChild(avatarEl(user.id, user.displayName, 46));
+    row.appendChild(avatarEl(user.id, user.displayName, 46, user.avatarUrl));
     const body = document.createElement('div');
     body.className = 'chat-item-body';
     const top = document.createElement('div');

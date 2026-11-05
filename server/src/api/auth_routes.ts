@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
 import { getDb, getSetting } from '../db.js';
-import { register, login, requireAuth, getUserById, getPrivateUser, updateDisplayName, changePassword, setEmail } from '../auth.js';
+import { register, login, requireAuth, getUserById, getPrivateUser, updateDisplayName, changePassword, setEmail, setBio, setAvatar } from '../auth.js';
 import { isOnline, broadcastUserUpdate } from '../ws/hub.js';
 import { rateLimit } from '../rate-limit.js';
 import { config } from '../config.js';
@@ -166,7 +166,7 @@ router.post('/me/verify-email', requireAuth, wrap(async (req, res) => {
  * (email is private — never broadcast, never in public DTOs).
  */
 router.patch('/me', requireAuth, wrap(async (req, res) => {
-  const { displayName, currentPassword, newPassword, email } = req.body ?? {};
+  const { displayName, currentPassword, newPassword, email, bio, avatarFileId } = req.body ?? {};
   const userId = req.userId;
   let privateUser = getPrivateUser(getDb(), userId);
   if (!privateUser) {
@@ -176,6 +176,20 @@ router.patch('/me', requireAuth, wrap(async (req, res) => {
   let changed = false;
   if (displayName !== undefined) {
     updateDisplayName(getDb(), userId, displayName);
+    privateUser = getPrivateUser(getDb(), userId)!;
+    changed = true;
+  }
+  if (bio !== undefined) {
+    if (typeof bio !== 'string') throw new BadRequest('bio must be a string');
+    setBio(getDb(), userId, bio);
+    privateUser = getPrivateUser(getDb(), userId)!;
+    changed = true;
+  }
+  if (avatarFileId !== undefined) {
+    if (avatarFileId !== null && !Number.isInteger(avatarFileId)) {
+      throw new BadRequest('avatarFileId must be a file id or null');
+    }
+    setAvatar(getDb(), userId, avatarFileId);
     privateUser = getPrivateUser(getDb(), userId)!;
     changed = true;
   }
@@ -194,7 +208,7 @@ router.patch('/me', requireAuth, wrap(async (req, res) => {
     });
   }
   if (!changed) throw new BadRequest('Nothing to update');
-  if (displayName !== undefined) {
+  if (displayName !== undefined || bio !== undefined || avatarFileId !== undefined) {
     // public DTO only — email never leaves this server in broadcasts
     broadcastUserUpdate(userId, { t: 'user.updated', user: getUserById(getDb(), userId) });
   }

@@ -1,3 +1,5 @@
+import { authedFileUrl } from '../api';
+
 /** Deterministic gradient avatar from a user id + initials. */
 export function avatarGradient(id: number): string {
   const hue = (id * 137.508) % 360; // golden angle avoids adjacent ids sharing hues
@@ -15,7 +17,7 @@ export function initials(name: string): string {
   );
 }
 
-export function avatarEl(id: number, name: string, size = 40): HTMLDivElement {
+export function avatarEl(id: number, name: string, size = 40, imageUrl?: string | null): HTMLDivElement {
   const el = document.createElement('div');
   el.className = 'avatar';
   el.style.width = `${size}px`;
@@ -23,6 +25,20 @@ export function avatarEl(id: number, name: string, size = 40): HTMLDivElement {
   el.style.fontSize = `${Math.max(size * 0.38, 10)}px`;
   el.style.background = avatarGradient(id);
   el.textContent = initials(name);
+
+  if (imageUrl) {
+    // avatars are auth-gated, so they arrive as a blob URL; the initials stay
+    // visible underneath until it loads (and forever if it fails)
+    void authedFileUrl(imageUrl)
+      .then((u) => {
+        el.classList.add('has-photo');
+        el.style.backgroundImage = `url("${u}")`;
+        el.textContent = '';
+      })
+      .catch(() => {
+        /* keep the initials */
+      });
+  }
   return el;
 }
 

@@ -3,6 +3,7 @@ import { store } from '../store';
 import { socket } from '../ws';
 import { loadMore } from '../actions';
 import { avatarEl, formatTime, formatLastSeen, formatBytes, isImageMime } from './format';
+import { openProfile } from './profile';
 import { openModal, toast, confirmDialog } from './toast';
 import { mountEmojiPanel } from './emoji-panel';
 import type { UIChat, UIMessage, MemberInfo } from '../types';
@@ -45,11 +46,8 @@ export function mountChatPane(): void {
     back.addEventListener('click', () => store.setActiveChat(null));
     headerEl.appendChild(back);
 
-    const avatarId =
-      chat.type === 'private'
-        ? (chat.members.find((m) => m.userId !== store.state.session?.user.id)?.userId ?? chat.id)
-        : chat.id;
-    const avatar = avatarEl(avatarId, store.chatTitle(chat), 40);
+    const peer = chat.type === 'private' ? chat.members.find((m) => m.userId !== store.state.session?.user.id) : undefined;
+    const avatar = avatarEl(peer?.userId ?? chat.id, store.chatTitle(chat), 40, peer?.avatarUrl);
     if (chat.type === 'group') avatar.classList.add('group-avatar');
     headerEl.appendChild(avatar);
 
@@ -63,6 +61,11 @@ export function mountChatPane(): void {
     sub.id = 'chat-header-sub';
     sub.textContent = subtitle(chat);
     info.append(name, sub);
+    if (chat.type === 'private' && peer) {
+      // tap the header → that person's profile (picture, bio, common groups)
+      info.classList.add('clickable');
+      info.addEventListener('click', () => void openProfile(peer.userId));
+    }
     headerEl.appendChild(info);
 
     if (chat.type === 'group') {
@@ -180,7 +183,10 @@ export function mountChatPane(): void {
 
     if (!mine && chat.type === 'group') {
       const sender = chat.members.find((m) => m.userId === msg.senderId);
-      row.appendChild(avatarEl(msg.senderId, sender?.displayName ?? '?', 34));
+      const senderAvatar = avatarEl(msg.senderId, sender?.displayName ?? '?', 34, sender?.avatarUrl);
+      senderAvatar.classList.add('clickable-avatar');
+      senderAvatar.addEventListener('click', () => void openProfile(msg.senderId));
+      row.appendChild(senderAvatar);
     }
 
     const bubble = document.createElement('div');
@@ -190,6 +196,7 @@ export function mountChatPane(): void {
       senderName.className = 'msg-sender';
       const sender = chat.members.find((m) => m.userId === msg.senderId);
       senderName.textContent = sender?.displayName ?? `user ${msg.senderId}`;
+      senderName.addEventListener('click', () => void openProfile(msg.senderId));
       bubble.appendChild(senderName);
     }
     bubble.appendChild(bubbleContent(msg));
@@ -878,7 +885,10 @@ function openMembersModal(chat: UIChat): void {
     for (const member of members) {
       const row = document.createElement('div');
       row.className = 'mm-row';
-      row.appendChild(avatarEl(member.userId, member.displayName, 32));
+      const memberAvatar = avatarEl(member.userId, member.displayName, 32, member.avatarUrl);
+      row.appendChild(memberAvatar);
+      row.classList.add('clickable');
+      row.addEventListener('click', () => void openProfile(member.userId));
       const info = document.createElement('div');
       info.className = 'mm-info';
       const name = document.createElement('div');
@@ -894,7 +904,8 @@ function openMembersModal(chat: UIChat): void {
         const kick = document.createElement('button');
         kick.className = 'mm-kick';
         kick.textContent = 'Remove';
-        kick.addEventListener('click', async () => {
+        kick.addEventListener('click', async (ev) => {
+          ev.stopPropagation();
           try {
             await api.removeMember(chat.id, member.userId);
             toast(`${member.displayName} removed`);

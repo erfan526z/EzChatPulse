@@ -1,4 +1,4 @@
-import type { ChatDTO, FileDTO, MessageDTO, Session, UserDTO } from './types';
+import type { ChatDTO, FileDTO, MessageDTO, ProfileResponse, Session, UserDTO } from './types';
 
 const TOKEN_KEY = 'chatpulse.token';
 
@@ -101,13 +101,21 @@ export const api = {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
     }),
-  updateMe: (body: { displayName?: string; currentPassword?: string; newPassword?: string; email?: string }) =>
+  updateMe: (body: {
+    displayName?: string;
+    currentPassword?: string;
+    newPassword?: string;
+    email?: string;
+    bio?: string;
+    avatarFileId?: number | null;
+  }) =>
     request<{ user: UserDTO }>('/api/me', {
       method: 'PATCH',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(body),
     }),
   users: (q: string) => request<{ users: UserDTO[] }>(`/api/users?q=${encodeURIComponent(q)}`),
+  profile: (userId: number) => request<ProfileResponse>(`/api/users/${userId}/profile`),
   chats: () => request<{ chats: ChatDTO[] }>('/api/chats'),
   createPrivate: (userId: number) =>
     request<{ chatId: number }>('/api/chats', {

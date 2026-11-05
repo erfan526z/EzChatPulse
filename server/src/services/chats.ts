@@ -3,6 +3,7 @@ import { BadRequest, Conflict, Forbidden, NotFound } from '../errors.js';
 import { isOnline } from '../ws/hub.js';
 import { isMember } from './membership.js';
 import { getMessage, type MessageDTO } from './messages.js';
+import { avatarUrlOf } from '../auth.js';
 
 export interface MemberInfo {
   userId: number;
@@ -11,6 +12,7 @@ export interface MemberInfo {
   role: 'member' | 'admin';
   online: boolean;
   lastSeenAt: number | null;
+  avatarUrl: string | null;
 }
 
 export interface ChatDTO {
@@ -159,7 +161,7 @@ export function deleteGroup(db: Db, actorId: number, chatId: number): void {
 export function listMembers(db: Db, chatId: number): MemberInfo[] {
   const rows = db
     .prepare(
-      `SELECT u.id, u.username, u.display_name, u.last_seen_at, cm.role
+      `SELECT u.id, u.username, u.display_name, u.last_seen_at, u.avatar_file_id, cm.role
        FROM chat_members cm
        JOIN users u ON u.id = cm.user_id
        WHERE cm.chat_id = ?
@@ -170,6 +172,7 @@ export function listMembers(db: Db, chatId: number): MemberInfo[] {
     username: string;
     display_name: string;
     last_seen_at: number | null;
+    avatar_file_id: number | null;
     role: string;
   }>;
   return rows.map((r) => ({
@@ -179,6 +182,7 @@ export function listMembers(db: Db, chatId: number): MemberInfo[] {
     role: r.role as 'member' | 'admin',
     online: isOnline(r.id),
     lastSeenAt: r.last_seen_at,
+    avatarUrl: avatarUrlOf(r.avatar_file_id),
   }));
 }
 

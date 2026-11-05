@@ -5,9 +5,11 @@ export interface UserDTO {
   createdAt: number;
   online: boolean;
   lastSeenAt: number | null;
+  avatarUrl?: string | null;
   /** private — only present on /api/me responses (never in member/search DTOs) */
   email?: string | null;
   emailVerified?: boolean;
+  bio?: string | null;
 }
 
 export interface MemberInfo {
@@ -17,6 +19,23 @@ export interface MemberInfo {
   role: 'member' | 'admin';
   online: boolean;
   lastSeenAt: number | null;
+  avatarUrl?: string | null;
+}
+
+/** GET /api/users/:id/profile */
+export interface ProfileResponse {
+  user: {
+    id: number;
+    username: string;
+    displayName: string;
+    createdAt: number;
+    bio: string | null;
+    avatarUrl: string | null;
+    online: boolean;
+    lastSeenAt: number | null;
+  };
+  commonGroups: { id: number; name: string; createdAt: number }[];
+  sharedPrivateChat: boolean;
 }
 
 export interface FileDTO {
