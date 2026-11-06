@@ -32,7 +32,11 @@ export function avatarEl(id: number, name: string, size = 40, imageUrl?: string 
     void authedFileUrl(imageUrl)
       .then((u) => {
         el.classList.add('has-photo');
-        el.style.backgroundImage = `url("${u}")`;
+        // Replace the whole `background` shorthand: setting only
+        // background-image leaves the inline `background-size: auto` from the
+        // gradient above in place (inline beats any class rule), which draws a
+        // 512px photo at 1:1 from its top-left corner inside a 36px circle.
+        el.style.background = `url("${u}") center / cover no-repeat`;
         el.textContent = '';
       })
       .catch(() => {

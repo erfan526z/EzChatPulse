@@ -1859,10 +1859,9 @@ textarea::placeholder {
 }
 
 /* ── profile card + real avatars (Nov 2026) ───────────────────────────── */
+/* sizing/position come from the inline shorthand set when the blob arrives —
+   inline beat these class rules, which is why the picture used to render at 1:1 */
 .avatar.has-photo {
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
   color: transparent;
   text-shadow: none;
 }

@@ -34,8 +34,9 @@
 | CP-22 | Malformed requests (scanner probes, bad JSON) return 500 + log spam | 🔸 minor | robustness | ✅ verified | error handling |
 | CP-23 | Toasts were click-through (`#toast-root` had `pointer-events:none` with no re-enable), so the new actionable "Open settings" button could not be clicked | 🔸 minor | UI | ✅ verified | S1 UX round |
 | CP-24 | **Profile card was invisible.** `.modal-overlay` starts at `opacity: 0` and only becomes visible with `.show`; the profile built its own overlay and never added it, so clicking a name underlined it and drew nothing. The card was in the DOM the whole time — which is exactly what the first verification checked, so it passed locally and shipped broken. Now rendered through the shared `openModal()` helper, and the check asserts real visibility (overlay opacity, box size, hit-test at the card's centre) instead of DOM presence | 🔺 serious | UI | ✅ verified | profiles round |
+| CP-25 | **Profile picture looked missing.** The blob loaded fine, but the avatar element already carried an inline `background` shorthand (the initials gradient) which pins `background-size: auto` — and inline beats any class rule. Setting only `background-image` afterwards drew a 512 px photo at 1:1 anchored top-left inside a 36–84 px circle, so it read as "no picture". Now the whole shorthand is replaced (`url(...) center / cover no-repeat`); the check asserts computed `background-size` is `cover` and a screenshot of the real file is inspected | 🔸 minor | UI | ✅ verified | profiles round |
 
-**24/24 closed.** The next CP number to use: **CP-25**.
+**25/25 closed.** The next CP number to use: **CP-26**.
 
 ## Open issues
 
