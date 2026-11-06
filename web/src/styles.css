@@ -1872,14 +1872,8 @@ textarea::placeholder {
 .clickable-avatar, .mm-row.clickable { cursor: pointer; }
 .mm-row.clickable:hover { background: var(--glass); }
 
-.profile-card {
-  width: min(380px, calc(100vw - 40px));
-  padding: 22px 22px 18px;
-  border-radius: 18px;
-  background: var(--bg-1);
-  border: 1px solid var(--border);
-  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.55);
-}
+/* the card is content inside .modal-box, which already provides the chrome */
+.profile-card { width: 100%; }
 
 .profile-head { display: flex; gap: 16px; align-items: center; }
 .profile-avatar { flex: 0 0 auto; }
@@ -1916,6 +1910,7 @@ textarea::placeholder {
 }
 .profile-group:hover { background: var(--glass-hover); }
 .profile-actions { display: flex; gap: 8px; margin-top: 18px; }
+.profile-actions .set-save { align-self: auto; }
 
 /* settings: picture row */
 .set-avatar-row { display: flex; gap: 16px; align-items: center; margin: 6px 0 14px; }

@@ -33,8 +33,9 @@
 | CP-21 | Group sender-name gradient spans the bubble width, not the name | 🔹 cosmetic | bug | ✅ verified | group bubbles |
 | CP-22 | Malformed requests (scanner probes, bad JSON) return 500 + log spam | 🔸 minor | robustness | ✅ verified | error handling |
 | CP-23 | Toasts were click-through (`#toast-root` had `pointer-events:none` with no re-enable), so the new actionable "Open settings" button could not be clicked | 🔸 minor | UI | ✅ verified | S1 UX round |
+| CP-24 | **Profile card was invisible.** `.modal-overlay` starts at `opacity: 0` and only becomes visible with `.show`; the profile built its own overlay and never added it, so clicking a name underlined it and drew nothing. The card was in the DOM the whole time — which is exactly what the first verification checked, so it passed locally and shipped broken. Now rendered through the shared `openModal()` helper, and the check asserts real visibility (overlay opacity, box size, hit-test at the card's centre) instead of DOM presence | 🔺 serious | UI | ✅ verified | profiles round |
 
-**23/23 closed.** The next CP number to use: **CP-24**.
+**24/24 closed.** The next CP number to use: **CP-25**.
 
 ## Open issues
 

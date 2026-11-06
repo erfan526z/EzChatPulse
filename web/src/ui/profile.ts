@@ -2,7 +2,7 @@ import { api } from '../api';
 import { store } from '../store';
 import { openChat } from '../actions';
 import { avatarEl, formatLastSeen } from './format';
-import { toast } from './toast';
+import { openModal, toast } from './toast';
 
 /**
  * A person's profile: picture, name, @username, bio and the groups you share.
@@ -10,6 +10,10 @@ import { toast } from './toast';
  * Server-side rule: you can only open the profile of someone you already share a
  * chat with (or anyone, if you are an admin) — so ids cannot be walked to harvest
  * names. A 403 is shown as a short explanation rather than silently failing.
+ *
+ * Rendered through the shared `openModal` helper: it adds the `.show` class that
+ * makes `.modal-overlay` visible, wraps the content in `.modal-box` and handles
+ * click-to-close.
  */
 export async function openProfile(userId: number): Promise<void> {
   let data;
@@ -27,12 +31,12 @@ export async function openProfile(userId: number): Promise<void> {
   const { user, commonGroups } = data;
   const isMe = store.state.session?.user.id === user.id;
 
-  const root = document.createElement('div');
-  root.className = 'profile-card';
+  const card = document.createElement('div');
+  card.className = 'profile-card';
 
   const head = document.createElement('div');
   head.className = 'profile-head';
-  const avatar = avatarEl(user.id, user.displayName, 96, user.avatarUrl);
+  const avatar = avatarEl(user.id, user.displayName, 84, user.avatarUrl);
   avatar.classList.add('profile-avatar');
   const headText = document.createElement('div');
   headText.className = 'profile-head-text';
@@ -47,27 +51,25 @@ export async function openProfile(userId: number): Promise<void> {
   presence.textContent = user.online ? 'online' : formatLastSeen(user.lastSeenAt);
   headText.append(nameEl, handle, presence);
   head.append(avatar, headText);
-  root.appendChild(head);
+  card.appendChild(head);
 
   if (user.bio) {
     const bio = document.createElement('p');
     bio.className = 'profile-bio';
     bio.textContent = user.bio;
-    root.appendChild(bio);
+    card.appendChild(bio);
   }
 
   const meta = document.createElement('div');
   meta.className = 'profile-meta';
   meta.textContent = `member since ${new Date(user.createdAt).toLocaleDateString()}`;
-  root.appendChild(meta);
+  card.appendChild(meta);
 
   if (!isMe) {
     const groupsTitle = document.createElement('div');
     groupsTitle.className = 'profile-section-title';
-    groupsTitle.textContent = commonGroups.length
-      ? `Common groups · ${commonGroups.length}`
-      : 'No common groups';
-    root.appendChild(groupsTitle);
+    groupsTitle.textContent = commonGroups.length ? `Common groups · ${commonGroups.length}` : 'No common groups';
+    card.appendChild(groupsTitle);
 
     if (commonGroups.length) {
       const list = document.createElement('div');
@@ -83,14 +85,14 @@ export async function openProfile(userId: number): Promise<void> {
         });
         list.appendChild(row);
       }
-      root.appendChild(list);
+      card.appendChild(list);
     }
 
     const actions = document.createElement('div');
     actions.className = 'profile-actions';
     const msgBtn = document.createElement('button');
     msgBtn.type = 'button';
-    msgBtn.className = 'primary-btn';
+    msgBtn.className = 'set-save';
     msgBtn.textContent = 'Message';
     msgBtn.addEventListener('click', async () => {
       try {
@@ -102,23 +104,15 @@ export async function openProfile(userId: number): Promise<void> {
       }
     });
     actions.appendChild(msgBtn);
-    root.appendChild(actions);
+    card.appendChild(actions);
   }
 
-  function close(): void {
-    overlay.remove();
-    document.removeEventListener('keydown', onKey);
-  }
-  function onKey(e: KeyboardEvent): void {
-    if (e.key === 'Escape') close();
-  }
-
-  const overlay = document.createElement('div');
-  overlay.className = 'modal-overlay';
-  overlay.appendChild(root);
-  overlay.addEventListener('click', (e) => {
-    if (e.target === overlay) close();
-  });
+  const close = openModal(card);
+  const onKey = (e: KeyboardEvent): void => {
+    if (e.key === 'Escape') {
+      close();
+      document.removeEventListener('keydown', onKey);
+    }
+  };
   document.addEventListener('keydown', onKey);
-  document.querySelector('#modal-root')!.appendChild(overlay);
 }
