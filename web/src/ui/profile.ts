@@ -15,7 +15,11 @@ import { openModal, toast } from './toast';
  * makes `.modal-overlay` visible, wraps the content in `.modal-box` and handles
  * click-to-close.
  */
+/** The profile currently on screen, so a second click cannot stack a new card on top. */
+let closeActive: (() => void) | null = null;
+
 export async function openProfile(userId: number): Promise<void> {
+  closeActive?.();
   let data;
   try {
     data = await api.profile(userId);
@@ -107,7 +111,13 @@ export async function openProfile(userId: number): Promise<void> {
     card.appendChild(actions);
   }
 
-  const close = openModal(card);
+  const dismiss = openModal(card);
+  const close = (): void => {
+    if (closeActive === close) closeActive = null;
+    dismiss();
+  };
+  closeActive = close;
+
   const onKey = (e: KeyboardEvent): void => {
     if (e.key === 'Escape') {
       close();
