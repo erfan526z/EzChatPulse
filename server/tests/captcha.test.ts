@@ -248,3 +248,57 @@ test('a successful login clears the failure counter', async () => {
     await ctx.close();
   }
 });
+
+/** Render an integer as Persian (۰-۹) digits, the way a Persian keyboard emits it. */
+function toPersianDigits(n: number): string {
+  return String(n).replace(/[0-9]/g, (d) => String.fromCharCode(0x06f0 + Number(d)));
+}
+
+test('CP-31: answers are accepted from Persian/Arabic keyboards and with padding', async () => {
+  const ctx = await createTestContext();
+  try {
+    const db = getDb();
+
+    // 1. Persian digits
+    const c1 = createChallenge();
+    const a1 = solveCaptchaSvg(c1.svg);
+    assert.doesNotThrow(
+      () => verifyChallenge(db, c1.token, toPersianDigits(Number(a1))),
+      'persian digits ۰-۹ must be folded to ascii',
+    );
+
+    // 2. Arabic-Indic digits (٠-٩)
+    const c2 = createChallenge();
+    const a2 = Number(solveCaptchaSvg(c2.svg));
+    const arabic = String(a2).replace(/[0-9]/g, (d) => String.fromCharCode(0x0660 + Number(d)));
+    assert.doesNotThrow(() => verifyChallenge(db, c2.token, arabic), 'arabic-indic digits are folded');
+
+    // 3. surrounding spaces and a leading plus are noise, not part of the answer
+    const c3 = createChallenge();
+    const a3 = solveCaptchaSvg(c3.svg);
+    assert.doesNotThrow(() => verifyChallenge(db, c3.token, `  ${a3}  `), 'surrounding spaces are ignored');
+
+    const c4 = createChallenge();
+    const a4 = solveCaptchaSvg(c4.svg);
+    assert.doesNotThrow(() => verifyChallenge(db, c4.token, `+${a4}`), 'a leading plus is stripped');
+  } finally {
+    await ctx.close();
+  }
+});
+
+test('CP-31: a wrong answer does not burn the challenge — the same token can be retried', async () => {
+  const ctx = await createTestContext();
+  try {
+    const db = getDb();
+    const c = createChallenge();
+    const answer = Number(solveCaptchaSvg(c.svg));
+    assert.throws(() => verifyChallenge(db, c.token, String(answer + 1)), /incorrect/i);
+    assert.doesNotThrow(
+      () => verifyChallenge(db, c.token, String(answer)),
+      'a mistyped answer must not consume the token',
+    );
+    assert.throws(() => verifyChallenge(db, c.token, String(answer)), /already used/i);
+  } finally {
+    await ctx.close();
+  }
+});

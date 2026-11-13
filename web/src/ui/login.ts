@@ -28,6 +28,7 @@ export function mountLogin(onSuccess: () => void): void {
             <input id="f-captcha" type="text" inputmode="numeric" placeholder="Answer" autocomplete="off" />
             <button type="button" id="captcha-refresh" title="New question" aria-label="New question">↻</button>
           </div>
+          <div class="captcha-hint">Wrong or hard to read? Tap ↻ for a new question.</div>
         </div>
         <button type="submit" id="login-submit">Sign in</button>
         <p class="login-error hidden"></p>
@@ -129,9 +130,10 @@ export function mountLogin(onSuccess: () => void): void {
       onSuccess();
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Something went wrong';
-      autoGrowCaptchaIfNeeded(err);
-      // a used/expired/mistyped challenge is dead — hand out a fresh one
-      if (captcha) await refreshChallenge();
+      const replaced = autoGrowCaptchaIfNeeded(err);
+      // a used/expired/mistyped challenge is dead — hand out a fresh one, unless
+      // the error already came with a new one
+      if (captcha && !replaced) await refreshChallenge();
       errEl.textContent = message;
       errEl.classList.remove('hidden');
       submitBtn.classList.remove('shake');

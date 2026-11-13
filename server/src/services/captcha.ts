@@ -41,10 +41,23 @@ function sign(input: string): string {
   return crypto.createHmac('sha256', config.jwtSecret).update(input).digest('base64url');
 }
 
+/** Persian ۰-۹ → 0-9 and Arabic-Indic ٠-٩ → 0-9, so a Persian keyboard still works. */
+function foldDigits(input: string): string {
+  return input
+    .replace(/[\u06F0-\u06F9]/g, (d) => String(d.charCodeAt(0) - 0x06f0))
+    .replace(/[\u0660-\u0669]/g, (d) => String(d.charCodeAt(0) - 0x0660));
+}
+
+/**
+ * Answers arrive from many keyboards: digits may be Persian/Arabic, the sign may
+ * be a unicode minus, and people pad with spaces or a leading "+".
+ */
 function normalizeAnswer(answer: unknown): string {
-  return String(answer ?? '')
+  return foldDigits(String(answer ?? ''))
     .trim()
-    .replace(/[\s,]/g, '');
+    .replace(/[\s,]/g, '')
+    .replace(/^\+/, '')
+    .replace(/[\u2212\u2013\u2014]/g, '-');
 }
 
 function newQuestion(): { text: string; answer: number } {
@@ -68,12 +81,12 @@ function renderSvg(text: string): string {
   const parts: string[] = [];
   let x = 16;
   for (const ch of text) {
-    const rot = jitter(-16, 16);
-    const dy = jitter(-4, 4);
-    const size = 22 + jitter(0, 3);
+    const rot = jitter(-9, 9);
+    const dy = jitter(-2, 2);
+    const size = 23 + jitter(0, 2);
     parts.push(
       `<text x="${x}" y="${32 + dy}" font-size="${size}" font-family="ui-monospace,monospace" ` +
-        `fill="#2b2f36" transform="rotate(${rot} ${x + 6} ${30 + dy})">${ch === ' ' ? '&nbsp;' : ch.replace(/&/g, '&amp;').replace(/</g, '&lt;')}</text>`,
+        `fill="#1b1f27" transform="rotate(${rot} ${x + 6} ${30 + dy})">${ch === ' ' ? '&nbsp;' : ch.replace(/&/g, '&amp;').replace(/</g, '&lt;')}</text>`,
     );
     x += ch === ' ' ? 9 : 15 + crypto.randomInt(4);
   }
@@ -84,10 +97,10 @@ function renderSvg(text: string): string {
     const y2 = crypto.randomInt(6, height - 6);
     noise.push(
       `<path d="M0 ${y1} Q ${crypto.randomInt(40, 80)} ${crypto.randomInt(0, height)} ${width} ${y2}" ` +
-        `stroke="#c9ced6" stroke-width="1" fill="none" opacity="0.75"/>`,
+        `stroke="#c9ced6" stroke-width="1" fill="none" opacity="0.5"/>`,
     );
   }
-  for (let i = 0; i < 12; i++) {
+  for (let i = 0; i < 8; i++) {
     noise.push(`<circle cx="${crypto.randomInt(width)}" cy="${crypto.randomInt(height)}" r="1" fill="#d5dae1"/>`);
   }
   return (
