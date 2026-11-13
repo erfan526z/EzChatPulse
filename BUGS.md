@@ -138,3 +138,11 @@ CP-32, CP-33, CP-34 and CP-35 shipped together with the UI overhaul (round 16).
 - data intact afterwards: 15 users · 21 chats · 370 messages (counts only, no content read)
 - live bundle `index-CMm6CnYP.js` / `index-CqtrFf2Y.css`
 - live tokens verified in the browser: `--accent` #34d399, `--r-bubble` .625rem, root 15px at 1280 / 16px at 390, no JS errors
+
+### Redeployed 2026-11-13 23:06 (profile editor)
+
+`68b2849` (unwinding editor) + `2e7b2dd` (flat treatment) + `6fc8f2a` (docs).
+
+- rollback snapshot `/opt/chatpulse-rollback-20261113-2306.tgz` (138 MB)
+- live bundle `index-BkpxxDQY.js` / `index-B2vM57Ow.css`
+- editor styles confirmed in the served CSS; no JS errors at 1280 / 390
