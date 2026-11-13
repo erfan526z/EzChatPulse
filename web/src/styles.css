@@ -596,25 +596,34 @@ button {
   border-bottom-right-radius: var(--r-tail);
 }
 
-.msg-row[data-run="mid"] .msg-bubble,
-.msg-row[data-run="last"] .msg-bubble {
+/* the wall-side TOP corner tightens for everything after the first of a run */
+.msg-row.theirs[data-run="mid"] .msg-bubble,
+.msg-row.theirs[data-run="last"] .msg-bubble {
   border-top-left-radius: var(--r-tail);
 }
 
 .msg-row.mine[data-run="mid"] .msg-bubble,
 .msg-row.mine[data-run="last"] .msg-bubble {
-  border-top-left-radius: var(--r-bubble);
   border-top-right-radius: var(--r-tail);
 }
 
-.msg-row.theirs[data-run="mid"] .msg-bubble,
-.msg-row.theirs[data-run="last"] .msg-bubble {
-  border-top-left-radius: var(--r-tail);
-  border-top-right-radius: var(--r-bubble);
+/* where the tail attaches the corner must be SQUARE — any rounding there pulls
+   the edge away from the hook and leaves a wedge of background between them */
+.msg-row.theirs[data-run="last"] .msg-bubble,
+.msg-row.theirs[data-run="single"] .msg-bubble,
+.msg-row.theirs:not([data-run]) .msg-bubble {
+  border-bottom-left-radius: 0;
 }
 
-/* the tail is drawn on the last message of a run, from a square corner */
+.msg-row.mine[data-run="last"] .msg-bubble,
+.msg-row.mine[data-run="single"] .msg-bubble,
+.msg-row.mine:not([data-run]) .msg-bubble {
+  border-bottom-right-radius: 0;
+}
+
+/* the hook itself: only on the last message of a run (or a lone message) */
 .msg-row[data-run="last"] .msg-bubble::after,
+.msg-row[data-run="single"] .msg-bubble::after,
 .msg-row:not([data-run]) .msg-bubble::after {
   content: "";
   position: absolute;
@@ -628,33 +637,16 @@ button {
 }
 
 .msg-row.theirs[data-run="last"] .msg-bubble::after,
+.msg-row.theirs[data-run="single"] .msg-bubble::after,
 .msg-row.theirs:not([data-run]) .msg-bubble::after {
   left: -0.5rem;
 }
 
 .msg-row.mine[data-run="last"] .msg-bubble::after,
+.msg-row.mine[data-run="single"] .msg-bubble::after,
 .msg-row.mine:not([data-run]) .msg-bubble::after {
   right: -0.5rem;
   transform: scaleX(-1);
-}
-
-/* square corner where the tail attaches */
-.msg-row[data-run="last"] .msg-bubble,
-.msg-row:not([data-run]) .msg-bubble {
-  border-bottom-left-radius: 0;
-  border-bottom-right-radius: 0;
-}
-
-.msg-row.theirs[data-run="last"] .msg-bubble,
-.msg-row.theirs:not([data-run]) .msg-bubble {
-  border-bottom-left-radius: 0;
-  border-bottom-right-radius: var(--r-bubble);
-}
-
-.msg-row.mine[data-run="last"] .msg-bubble,
-.msg-row.mine:not([data-run]) .msg-bubble {
-  border-bottom-right-radius: 0;
-  border-bottom-left-radius: var(--r-bubble);
 }
 
 .msg-sender {
@@ -1490,6 +1482,19 @@ button {
 .set-save:disabled {
   opacity: 0.55;
   cursor: default;
+}
+
+/* secondary actions stay neutral: only one accent button per section */
+.set-save.secondary,
+.set-avatar-btns .set-save {
+  background-color: var(--bg-raised);
+  background-image: none;
+  color: var(--text-1);
+  border: 1px solid var(--border-strong);
+}
+
+.set-avatar-btns .set-save:hover {
+  background-color: var(--bg-press);
 }
 
 .set-avatar-row {

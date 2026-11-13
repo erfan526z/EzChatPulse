@@ -64,6 +64,12 @@ export function formatTime(ts: number): string {
   return d.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ' ' + hm;
 }
 
+/** Clock only — for the meta line inside a bubble, where the day already sits in
+ *  a separator above. Keeps the bubble narrow instead of repeating the date. */
+export function formatClock(ts: number): string {
+  return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
 export function formatLastSeen(ts: number | null): string {
   if (!ts) return 'last seen recently';
   const diff = Date.now() - ts;

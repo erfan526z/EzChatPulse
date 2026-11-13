@@ -2,7 +2,7 @@ import { api, authedFileUrl } from '../api';
 import { store } from '../store';
 import { socket } from '../ws';
 import { loadMore } from '../actions';
-import { avatarEl, formatTime, formatLastSeen, formatBytes, isImageMime } from './format';
+import { avatarEl, formatClock, formatLastSeen, formatBytes, isImageMime } from './format';
 import { openProfile } from './profile';
 import { openModal, toast, confirmDialog } from './toast';
 import { mountEmojiPanel } from './emoji-panel';
@@ -236,7 +236,7 @@ export function mountChatPane(): void {
     meta.className = 'msg-meta';
     const time = document.createElement('span');
     time.className = 'msg-time';
-    time.textContent = formatTime(msg.createdAt);
+    time.textContent = formatClock(msg.createdAt);
     meta.appendChild(time);
     if (msg.editedAt) {
       const edited = document.createElement('span');
