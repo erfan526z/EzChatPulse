@@ -312,7 +312,7 @@ export function openSettings(): void {
 
   const themeRow = el('div', 'set-row');
   const themeText = el('div', 'set-row-text');
-  themeText.append(el('div', 'label', 'Theme'), el('div', 'sub', 'Follows this device'));
+  themeText.append(el('div', 'label', 'Theme'));
   const themeSide = el('div', 'set-row-side');
   const themeChips = el('div', 'set-chips');
   const chipDark = el('button', 'set-chip', 'Dark');

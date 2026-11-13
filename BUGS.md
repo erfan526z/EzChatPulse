@@ -106,3 +106,24 @@ and verified at that viewport; none deployed yet.
 
 Also: Escape now closes any dialog opened through `openModal()` — the drawer,
 settings and profile already worked that way, the modals did not.
+
+## CP-35 — typography did not match the lab · FIXED (not deployed)
+
+Measured every text element in the lab against the app at the same viewport
+(computed size / weight / letter-spacing / line-height) and aligned the
+mismatches. The letterforms were never the problem — the stack resolves to the
+same face in both. The differences were values I had invented:
+
+| element | lab | app before | now |
+|---|---|---|---|
+| Settings title | 16px w600 | 18px w700 | 16px w600 |
+| Chat list title | 16px w600 | 18px w700, ls -0.01em | 16px w600 |
+| settings row label | w400 | w500 | w400 |
+| settings row sub | lh 1.35 | lh 1.45 | 1.35 |
+| profile presence | text-3 (muted) | accent green | muted |
+| profile field value / label | 15px / 12px | 14px / 11px | 15 / 12 |
+| drawer name / handle | 18px w700 / 13px | 16px w600 / 12px | 18 w700 / 13 |
+| FAB | 3.5rem, 24px icon | 3.25rem, 22px glyph | 3.5rem, 20px glyph |
+
+Also removed the invented "Follows this device" sub-line under Theme, so the
+first card matches the lab's height exactly.
