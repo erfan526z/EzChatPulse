@@ -4,7 +4,7 @@ import crypto from 'node:crypto';
 import type { Db } from '../db.js';
 import { config } from '../config.js';
 import { BadRequest } from '../errors.js';
-import { isThumbnailable } from './thumbs.js';
+import { isThumbnailable, isAnimatedPng } from './thumbs.js';
 
 export interface FileDTO {
   id: number;
@@ -26,10 +26,17 @@ export interface StoredFile {
   stored_path: string;
   thumb_path: string | null;
   thumb_size: number | null;
+  animated: number;
 }
 
 /** The one place a file is turned into its wire shape. */
-export function fileDTO(file: { id: number; name: string; mime: string; size: number }): FileDTO {
+export function fileDTO(file: {
+  id: number;
+  name: string;
+  mime: string;
+  size: number;
+  animated?: number | null;
+}): FileDTO {
   const dto: FileDTO = {
     id: file.id,
     name: file.name,
@@ -37,7 +44,7 @@ export function fileDTO(file: { id: number; name: string; mime: string; size: nu
     size: file.size,
     url: `/api/files/${file.id}`,
   };
-  if (isThumbnailable(file.mime)) dto.thumbUrl = `/api/files/${file.id}?thumb=1`;
+  if (isThumbnailable(file.mime, Boolean(file.animated))) dto.thumbUrl = `/api/files/${file.id}?thumb=1`;
   return dto;
 }
 
@@ -70,10 +77,13 @@ export function storeUpload(
   const name = decodeFilename(file.originalname);
   const sha256 = crypto.createHash('sha256').update(file.buffer).digest('hex');
 
-  const existing = db.prepare('SELECT id, name, mime, size FROM files WHERE sha256 = ?').get(sha256) as
-    | { id: number; name: string; mime: string; size: number }
+  const existing = db.prepare('SELECT id, name, mime, size, animated FROM files WHERE sha256 = ?').get(sha256) as
+    | { id: number; name: string; mime: string; size: number; animated: number }
     | undefined;
   if (existing) return fileDTO(existing);
+
+  // an animated PNG must keep its frames: never thumbnail it (same as GIF)
+  const animated = file.mimetype === 'image/png' && isAnimatedPng(file.buffer) ? 1 : 0;
 
   const subdir = sha256.slice(0, 2);
   const dir = path.join(config.uploadsDir, subdir);
@@ -81,19 +91,22 @@ export function storeUpload(
   fs.writeFileSync(path.join(config.uploadsDir, subdir, sha256), file.buffer);
 
   const info = db
-    .prepare('INSERT INTO files (owner_id, name, mime, size, sha256, stored_path, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
-    .run(ownerId, name, file.mimetype, file.size, sha256, path.join(subdir, sha256), Date.now());
+    .prepare(
+      'INSERT INTO files (owner_id, name, mime, size, sha256, stored_path, created_at, animated) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+    )
+    .run(ownerId, name, file.mimetype, file.size, sha256, path.join(subdir, sha256), Date.now(), animated);
 
   return fileDTO({
     id: Number(info.lastInsertRowid),
     name,
     mime: file.mimetype,
     size: file.size,
+    animated,
   });
 }
 
 export function getFileRow(db: Db, id: number): StoredFile | undefined {
   return db
-    .prepare('SELECT id, owner_id, name, mime, size, sha256, stored_path, thumb_path, thumb_size FROM files WHERE id = ?')
+    .prepare('SELECT id, owner_id, name, mime, size, sha256, stored_path, thumb_path, thumb_size, animated FROM files WHERE id = ?')
     .get(id) as StoredFile | undefined;
 }

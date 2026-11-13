@@ -86,6 +86,16 @@ const migrations: Array<{ version: number; up: (db: Db) => void }> = [
       }
     },
   },
+  {
+    // v9 — animated PNGs must never be flattened into a still thumbnail
+    version: 9,
+    up(db) {
+      const cols = db.prepare('PRAGMA table_info(files)').all() as Array<{ name: string }>;
+      if (!cols.some((c) => c.name === 'animated')) {
+        db.exec('ALTER TABLE files ADD COLUMN animated INTEGER NOT NULL DEFAULT 0');
+      }
+    },
+  },
 ];
 
 function runMigrations(db: Db): void {

@@ -23,8 +23,29 @@ const inFlight = new Map<number, Promise<Thumb | null>>();
  * too (rasterising would drop the animation — a still thumbnail in the bubble
  * would be worse than a slightly bigger animated file).
  */
-export function isThumbnailable(mime: string): boolean {
+export function isThumbnailable(mime: string, animated = false): boolean {
+  if (animated) return false; // an animated image loses its point as a still
   return mime.startsWith('image/') && !['image/svg+xml', 'image/gif'].includes(mime);
+}
+
+/**
+ * APNG looks exactly like PNG to every mime check: the animation lives in an
+ * `acTL` chunk before the first `IDAT`. sharp flattens it to a still frame, so we
+ * detect it and keep the original (same policy as GIF).
+ */
+export function isAnimatedPng(buf: Buffer): boolean {
+  if (buf.length < 16) return false;
+  if (buf.readUInt32BE(0) !== 0x89504e47 || buf.readUInt32BE(4) !== 0x0d0a1a0a) return false;
+  let off = 8;
+  while (off + 8 <= buf.length) {
+    const len = buf.readUInt32BE(off);
+    const type = buf.toString('ascii', off + 4, off + 8);
+    if (type === 'acTL') return true;
+    if (type === 'IDAT') return false; // acTL must precede the image data
+    off += 12 + len;
+    if (len > buf.length || off <= 0) break;
+  }
+  return false;
 }
 
 export function thumbMime(): string {
@@ -39,7 +60,7 @@ export function thumbMime(): string {
  * a broken image simply falls back to the original.
  */
 export function ensureThumb(db: Db, file: StoredFile): Promise<Thumb | null> {
-  if (!isThumbnailable(file.mime)) return Promise.resolve(null);
+  if (!isThumbnailable(file.mime, Boolean(file.animated))) return Promise.resolve(null);
 
   if (file.thumb_path) {
     const abs = path.join(config.uploadsDir, file.thumb_path);

@@ -7,6 +7,7 @@ import crypto from 'node:crypto';
 import sharp from 'sharp';
 import { createTestContext, registerUser } from './helpers.js';
 import { config } from '../src/config.js';
+import { isAnimatedPng } from '../src/services/thumbs.js';
 
 /** True noise: incompressible, so the thumbnail win is measurable (a gradient or
  *  repeating pattern compresses to almost nothing and would flatter the test). */
@@ -38,6 +39,44 @@ async function upload(ctx: { port: number }, token: string, name: string, mime: 
     body: form.body,
   });
   return { status: res.status, body: (await res.json()) as any };
+}
+
+
+// ── APNG fixtures ───────────────────────────────────────────────────────
+// sharp cannot emit animated PNGs, so build a chunk-valid one by hand: take a
+// real PNG and insert the acTL chunk that marks it animated.
+const CRC_TABLE = (() => {
+  const table = new Uint32Array(256);
+  for (let n = 0; n < 256; n++) {
+    let c = n;
+    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+    table[n] = c >>> 0;
+  }
+  return table;
+})();
+
+function crc32(buf: Buffer): number {
+  let c = 0xffffffff;
+  for (const byte of buf) c = CRC_TABLE[(c ^ byte) & 0xff] ^ (c >>> 8);
+  return (c ^ 0xffffffff) >>> 0;
+}
+
+function pngChunk(type: string, data: Buffer): Buffer {
+  const len = Buffer.alloc(4);
+  len.writeUInt32BE(data.length, 0);
+  const body = Buffer.concat([Buffer.from(type, 'ascii'), data]);
+  const crc = Buffer.alloc(4);
+  crc.writeUInt32BE(crc32(body), 0);
+  return Buffer.concat([len, body, crc]);
+}
+
+/** Turn a normal PNG into an APNG by declaring an animation after IHDR. */
+function makeApng(png: Buffer, frames = 2): Buffer {
+  const actl = Buffer.alloc(8);
+  actl.writeUInt32BE(frames, 0); // num_frames
+  actl.writeUInt32BE(0, 4); // num_plays: forever
+  const afterIhdr = 8 + 25; // signature + IHDR chunk
+  return Buffer.concat([png.subarray(0, afterIhdr), pngChunk('acTL', actl), png.subarray(afterIhdr)]);
 }
 
 /** Point uploads at a scratch dir so thumbnails never touch the repo's data/. */
@@ -178,6 +217,55 @@ test('thumbnail keeps the aspect ratio of the original', async () => {
     const meta = await sharp(Buffer.from(await thumb.arrayBuffer())).metadata();
     assert.equal(meta.width, 512);
     assert.equal(meta.height, 128);
+  } finally {
+    await ctx.close();
+    tmp.restore();
+  }
+});
+
+test('APNG is detected and never flattened into a still thumbnail', async () => {
+  const tmp = withTempUploads();
+  const ctx = await createTestContext();
+  try {
+    const alice = await registerUser(ctx, 'alice', 'Alice', 'password123');
+    const plain = await bigPng(300, 200);
+    const apng = makeApng(plain);
+
+    // detection itself
+    assert.equal(isAnimatedPng(apng), true, 'acTL marks the file animated');
+    assert.equal(isAnimatedPng(plain), false, 'a plain PNG is not animated');
+    assert.equal(isAnimatedPng(Buffer.from('GIF89a....')), false, 'non-PNG is rejected');
+    assert.equal(isAnimatedPng(Buffer.alloc(0)), false, 'empty buffer is rejected');
+
+    const { status, body } = await upload(ctx, alice.token, 'sticker.png', 'image/png', apng);
+    assert.equal(status, 201);
+    const file = body.file;
+    assert.equal(file.thumbUrl, undefined, 'no thumbnail advertised for an animated PNG');
+
+    // ?thumb=1 must hand back the original bytes, not a flattened webp
+    const resp = await fetch(`http://127.0.0.1:${ctx.port}/api/files/${file.id}?thumb=1`, {
+      headers: { authorization: `Bearer ${alice.token}` },
+    });
+    assert.equal(resp.status, 200);
+    assert.equal(resp.headers.get('content-type'), 'image/png', 'served as the original PNG');
+    const bytes = Buffer.from(await resp.arrayBuffer());
+    assert.equal(bytes.length, apng.length, 'byte-identical to the upload');
+    assert.equal(bytes.subarray(0, 4).toString('hex'), '89504e47', 'still a PNG');
+    assert.equal(isAnimatedPng(bytes), true, 'animation survived the round-trip');
+  } finally {
+    await ctx.close();
+    tmp.restore();
+  }
+});
+
+test('a plain PNG uploaded next to an APNG still gets its thumbnail', async () => {
+  const tmp = withTempUploads();
+  const ctx = await createTestContext();
+  try {
+    const alice = await registerUser(ctx, 'alice', 'Alice', 'password123');
+    const plain = await bigPng(400, 300);
+    const { body } = await upload(ctx, alice.token, 'photo.png', 'image/png', plain);
+    assert.equal(body.file.thumbUrl, `/api/files/${body.file.id}?thumb=1`, 'static PNG keeps its thumbnail');
   } finally {
     await ctx.close();
     tmp.restore();
