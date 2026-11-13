@@ -178,6 +178,8 @@ export function mountChatPane(): void {
     const row = document.createElement('div');
     row.className = `msg-row ${mine ? 'mine' : 'theirs'}`;
     row.dataset.key = msg.tempId ? `t:${msg.tempId}` : `m:${msg.id}`;
+    row.dataset.side = mine ? 'out' : 'in';
+    row.dataset.sender = String(msg.senderId);
     if (msg.pending) row.classList.add('pending');
     if (msg.failed) row.classList.add('failed');
 
@@ -515,6 +517,36 @@ export function mountChatPane(): void {
     refreshTicks();
   }
 
+
+  /**
+   * Mark each message with its place in a run so the stylesheet can draw the
+   * chain: rounded at the top of a run, tight along the wall, tail on the last.
+   * A run breaks on a change of sender/side or on a day separator.
+   */
+  function markRuns(): void {
+    const rows = [...messagesEl.children].filter(
+      (el): el is HTMLElement => el instanceof HTMLElement && el.classList.contains('msg-row'),
+    );
+    const sameRun = (a: HTMLElement | null, b: HTMLElement | null): boolean =>
+      Boolean(a && b && a.dataset.side === b.dataset.side && a.dataset.sender === b.dataset.sender);
+
+    // a day separator between two rows always breaks the run
+    const separated = (el: HTMLElement | null): boolean => {
+      if (!el) return false;
+      const prev = el.previousElementSibling;
+      return Boolean(prev && prev.classList.contains('day-sep'));
+    };
+
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i] as HTMLElement;
+      const prev = i > 0 ? (rows[i - 1] as HTMLElement) : null;
+      const next = i + 1 < rows.length ? (rows[i + 1] as HTMLElement) : null;
+      const joinsPrev = sameRun(prev, row) && !separated(row);
+      const joinsNext = sameRun(row, next) && !separated(next);
+      row.dataset.run = joinsPrev && joinsNext ? 'mid' : joinsPrev ? 'last' : joinsNext ? 'first' : 'single';
+    }
+  }
+
   function renderMessages(chat: UIChat): void {
     messagesEl.innerHTML = '';
     let lastDay = '';
@@ -531,6 +563,7 @@ export function mountChatPane(): void {
       }
       messagesEl.appendChild(makeMessageNode(chat, msg));
     }
+    markRuns();
   }
 
   function appendMessage(chat: UIChat, msg: UIMessage): void {
@@ -554,6 +587,7 @@ export function mountChatPane(): void {
       messagesEl.appendChild(sep);
     }
     messagesEl.appendChild(makeMessageNode(chat, msg));
+    markRuns();
   }
 
   /** Insert an older message ABOVE the current first row (history pagination).
@@ -843,6 +877,7 @@ export function mountChatPane(): void {
         el.replaceWith(makeMessageNode(chat, storeMsg));
       }
     }
+    markRuns();
     // follow new messages only when they were APPENDED and the user is at the
     // bottom. Prepend-only updates (older history) must not move the viewport.
     const newLast = chat.messages[chat.messages.length - 1];

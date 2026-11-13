@@ -1,3 +1,4 @@
+import './tokens.css';
 import './styles.css';
 import { api, getToken, setToken } from './api';
 import { store } from './store';
