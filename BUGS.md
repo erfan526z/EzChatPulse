@@ -183,3 +183,9 @@ sender, the borders inconsistent)."
 the overlaid clock pill; pictures narrower than their caption are centred.
 Verified: 240 px picture in a 246 px bubble (3 px frame each side), pill 70×14,
 no overflow at 390 or 1280.
+
+### Redeployed 2026-11-13 23:21 (CP-36, CP-37)
+
+- rollback snapshot `/opt/chatpulse-rollback-20261113-2321.tgz`
+- live bundle `index-hN9HdrGf.js` / `index-Br5avP8D.css`
+- media/overflow rules confirmed in the served CSS; no JS errors at 1280 / 390
