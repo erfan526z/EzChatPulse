@@ -295,7 +295,7 @@ export function openSettings(): void {
     const me = store.state.session?.user;
     if (!me) return;
     avatarBox.innerHTML = '';
-    avatarBox.appendChild(avatarEl(me.id, me.displayName, 64, me.avatarUrl));
+    avatarBox.appendChild(avatarEl(me.id, me.displayName, 56, me.avatarUrl));
     const dot = el('span', `presence-dot ${me.online ? 'online' : ''}`);
     avatarBox.appendChild(dot);
     profileName.textContent = me.displayName;
