@@ -108,6 +108,7 @@ export const api = {
     email?: string;
     bio?: string;
     avatarFileId?: number | null;
+    accent?: string | null;
   }) =>
     request<{ user: UserDTO }>('/api/me', {
       method: 'PATCH',

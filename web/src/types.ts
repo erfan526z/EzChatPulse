@@ -10,6 +10,8 @@ export interface UserDTO {
   email?: string | null;
   emailVerified?: boolean;
   bio?: string | null;
+  /** private — theme accent ("#rrggbb" or "grad:<preset>"), only on /api/me */
+  accent?: string | null;
 }
 
 export interface MemberInfo {

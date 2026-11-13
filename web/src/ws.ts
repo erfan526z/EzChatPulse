@@ -128,7 +128,7 @@ class ChatSocket {
           if (msg.code === 'EMAIL_NOT_VERIFIED') {
             toast(msg.message ?? 'Confirm your email address to send messages', 'error', {
               label: 'Open settings',
-              onClick: () => void import('./ui/settings').then((m) => m.openSettingsModal()),
+              onClick: () => void import('./ui/settings').then((m) => m.openSettings()),
             });
             return;
           }

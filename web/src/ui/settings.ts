@@ -1,46 +1,157 @@
-import { api } from '../api';
+import { api, setToken } from '../api';
 import { store } from '../store';
-import { openModal, toast } from './toast';
+import { toast } from './toast';
 import { avatarEl } from './format';
+import { ACCENT_PRESETS, applyAccent, applyTheme, currentTheme, accentPreset, type Theme } from './theme';
+
+/**
+ * Settings, as a screen rather than a dialog.
+ *
+ * One scrolling column on phones; a section nav beside the content once there is
+ * room (the shell is laid out entirely in CSS). Sections: Profile, Appearance,
+ * Account, and log out.
+ */
 
 let closeCurrent: (() => void) | null = null;
 
-function field(label: string, type: string, id: string, placeholder = ''): HTMLDivElement {
-  const wrap = document.createElement('div');
-  wrap.className = 'set-field';
-  const l = document.createElement('label');
-  l.textContent = label;
-  l.setAttribute('for', id);
-  const input = document.createElement('input');
+const SECTIONS = [
+  { id: 'set-profile', label: 'Profile' },
+  { id: 'set-appearance', label: 'Appearance' },
+  { id: 'set-account', label: 'Account' },
+] as const;
+
+function el<K extends keyof HTMLElementTagNameMap>(
+  tag: K,
+  className?: string,
+  text?: string,
+): HTMLElementTagNameMap[K] {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  if (text !== undefined) node.textContent = text;
+  return node;
+}
+
+function field(labelText: string, type: string, id: string): HTMLDivElement {
+  const wrap = el('div', 'set-field');
+  const label = el('label', undefined, labelText);
+  label.htmlFor = id;
+  const input = el('input');
   input.type = type;
   input.id = id;
-  input.placeholder = placeholder;
   input.autocomplete = 'off';
-  wrap.append(l, input);
+  wrap.append(label, input);
   return wrap;
 }
 
-/** Settings modal: display name, password change, log out. */
-export function openSettingsModal(): void {
+function groupTitle(text: string): HTMLDivElement {
+  return el('div', 'set-group-title', text);
+}
+
+function card(...children: HTMLElement[]): HTMLDivElement {
+  const c = el('div', 'set-card');
+  c.append(...children);
+  return c;
+}
+
+/** A row: label (+ optional sub-label) on the left, control on the right. */
+function row(labelText: string, sub: string | undefined, ...controls: HTMLElement[]): HTMLDivElement {
+  const r = el('div', 'set-row');
+  const text = el('div', 'set-row-text');
+  text.append(el('div', 'label', labelText));
+  if (sub) text.append(el('div', 'sub', sub));
+  const side = el('div', 'set-row-side');
+  side.append(...controls);
+  r.append(text, side);
+  return r;
+}
+
+function toggle(initial: boolean, onChange: (next: boolean) => void): HTMLButtonElement {
+  const b = el('button', 'set-switch');
+  b.type = 'button';
+  b.setAttribute('role', 'switch');
+  const paint = (on: boolean): void => {
+    b.classList.toggle('on', on);
+    b.setAttribute('aria-checked', String(on));
+  };
+  paint(initial);
+  b.addEventListener('click', () => {
+    const next = !b.classList.contains('on');
+    paint(next);
+    onChange(next);
+  });
+  return b;
+}
+
+export function openSettings(): void {
   closeCurrent?.();
-  const root = document.createElement('div');
-  root.className = 'settings-modal';
+  const session = store.state.session;
+  if (!session) return;
 
-  const title = document.createElement('h2');
-  title.textContent = 'Settings';
-  root.appendChild(title);
+  const screen = el('div', 'settings-screen');
+  screen.setAttribute('role', 'dialog');
+  screen.setAttribute('aria-label', 'Settings');
 
-  // ── display name ──
-  const nameHint = document.createElement('p');
-  nameHint.className = 'set-hint';
-  nameHint.textContent = 'Display name — shown to people you chat with.';
+  // ── top bar ───────────────────────────────────────────────────────────
+  const top = el('header', 'screen-top');
+  const back = el('button', 'icon-btn');
+  back.type = 'button';
+  back.title = 'Back';
+  back.setAttribute('aria-label', 'Back');
+  back.textContent = '‹';
+  back.addEventListener('click', () => closeCurrent?.());
+  top.append(back, el('h1', 'screen-title', 'Settings'));
+
+  // ── shell: nav + scrolling content ────────────────────────────────────
+  const shell = el('div', 'set-shell');
+  const nav = el('nav', 'set-nav');
+  const scroller = el('div', 'set-scroll');
+
+  const navItems = SECTIONS.map((s) => {
+    const a = el('button', 'set-nav-item');
+    a.type = 'button';
+    a.dataset.target = s.id;
+    a.textContent = s.label;
+    a.addEventListener('click', () => {
+      const target = document.getElementById(s.id);
+      if (!target) return;
+      const delta = target.getBoundingClientRect().top - scroller.getBoundingClientRect().top;
+      scroller.scrollTo({ top: scroller.scrollTop + delta - 8, behavior: 'smooth' });
+    });
+    nav.appendChild(a);
+    return a;
+  });
+
+  // mark the section under the reading band
+  const markActive = (): void => {
+    const edge = scroller.getBoundingClientRect().top + scroller.clientHeight * 0.35;
+    let current: string = SECTIONS[0].id;
+    for (const s of SECTIONS) {
+      const node = document.getElementById(s.id);
+      if (node && node.getBoundingClientRect().top <= edge) current = s.id;
+    }
+    for (const a of navItems) a.classList.toggle('on', a.dataset.target === current);
+  };
+  scroller.addEventListener('scroll', markActive, { passive: true });
+
+  // ── Profile ───────────────────────────────────────────────────────────
+  const profileSection = el('section');
+  profileSection.id = 'set-profile';
+  const profileRow = el('div', 'set-profile');
+  const avatarBox = el('div', 'set-avatar');
+  const profileText = el('div', 'set-profile-text');
+  const profileName = el('div', 'set-profile-name');
+  const profileHandle = el('div', 'set-profile-handle');
+  profileText.append(profileName, profileHandle);
+  const editBtn = el('button', 'set-link', 'Edit');
+  profileRow.append(avatarBox, profileText, editBtn);
+
+  const details = el('div', 'set-details');
+  const detailsHidden = el('div', 'set-details-body');
+
   const nameField = field('Display name', 'text', 'set-name');
   const nameInput = nameField.querySelector<HTMLInputElement>('#set-name')!;
-  nameInput.value = store.state.session?.user.displayName ?? '';
   nameInput.maxLength = 32;
-  const nameSave = document.createElement('button');
-  nameSave.className = 'set-save';
-  nameSave.textContent = 'Save name';
+  const nameSave = el('button', 'set-save', 'Save name');
   nameSave.addEventListener('click', async () => {
     const displayName = nameInput.value.trim();
     if (!displayName) {
@@ -51,6 +162,7 @@ export function openSettingsModal(): void {
     try {
       const { user } = await api.updateMe({ displayName });
       store.setUser(user);
+      paintProfile();
       toast('Display name updated', 'info');
     } catch (err) {
       toast(err instanceof Error ? err.message : 'Update failed', 'error');
@@ -58,44 +170,16 @@ export function openSettingsModal(): void {
       nameSave.disabled = false;
     }
   });
-  const nameSection = document.createElement('section');
-  nameSection.className = 'set-section';
-  nameSection.append(nameHint, nameField, nameSave);
-  root.appendChild(nameSection);
 
-  // ── picture + bio ──
-  const meUser = store.state.session?.user;
-  const profileSection = document.createElement('section');
-  profileSection.className = 'set-section';
-  const profileHint = document.createElement('p');
-  profileHint.className = 'set-hint';
-  profileHint.textContent = 'Profile picture and bio — shown on your profile card.';
-  profileSection.appendChild(profileHint);
-
-  const avatarRow = document.createElement('div');
-  avatarRow.className = 'set-avatar-row';
-  const avatarBox = document.createElement('div');
-  avatarBox.className = 'set-avatar';
-  const paintAvatar = (): void => {
-    const current = store.state.session?.user;
-    avatarBox.innerHTML = '';
-    if (current) avatarBox.appendChild(avatarEl(current.id, current.displayName, 64, current.avatarUrl));
-    pickBtn.textContent = current?.avatarUrl ? 'Change picture' : 'Upload picture';
-    removeBtn.style.display = current?.avatarUrl ? '' : 'none';
-  };
-  const avatarBtns = document.createElement('div');
-  avatarBtns.className = 'set-avatar-btns';
-  const pickBtn = document.createElement('button');
-  pickBtn.className = 'set-save';
-  pickBtn.textContent = meUser?.avatarUrl ? 'Change picture' : 'Upload picture';
-  const removeBtn = document.createElement('button');
-  removeBtn.className = 'set-save secondary';
-  removeBtn.textContent = 'Remove picture';
-  removeBtn.style.display = meUser?.avatarUrl ? '' : 'none';
-  const fileInput = document.createElement('input');
+  const avatarRow = el('div', 'set-avatar-row');
+  const pickBtn = el('button', 'set-save secondary', 'Change picture');
+  const removeBtn = el('button', 'set-save secondary', 'Remove picture');
+  const fileInput = el('input');
   fileInput.type = 'file';
   fileInput.accept = 'image/*';
   fileInput.hidden = true;
+  const avatarBtns = el('div', 'set-avatar-btns');
+  avatarBtns.append(pickBtn, removeBtn);
 
   pickBtn.addEventListener('click', () => fileInput.click());
   fileInput.addEventListener('change', async () => {
@@ -106,7 +190,7 @@ export function openSettingsModal(): void {
       const uploaded = await api.upload(file);
       const { user } = await api.updateMe({ avatarFileId: uploaded.file.id });
       store.setUser(user);
-      paintAvatar();
+      paintProfile();
       toast('Profile picture updated', 'info');
     } catch (err) {
       toast(err instanceof Error ? err.message : 'Upload failed', 'error');
@@ -115,13 +199,12 @@ export function openSettingsModal(): void {
       fileInput.value = '';
     }
   });
-
   removeBtn.addEventListener('click', async () => {
     removeBtn.disabled = true;
     try {
       const { user } = await api.updateMe({ avatarFileId: null });
       store.setUser(user);
-      paintAvatar();
+      paintProfile();
       toast('Profile picture removed', 'info');
     } catch (err) {
       toast(err instanceof Error ? err.message : 'Could not remove the picture', 'error');
@@ -130,28 +213,15 @@ export function openSettingsModal(): void {
     }
   });
 
-  avatarBtns.append(pickBtn, removeBtn, fileInput);
-  avatarRow.append(avatarBox, avatarBtns);
-  paintAvatar();
-  profileSection.appendChild(avatarRow);
-
-  const bioHint = document.createElement('p');
-  bioHint.className = 'set-hint';
-  bioHint.textContent = 'Bio — a short line about you (up to 200 characters).';
-  const bioField = document.createElement('div');
-  bioField.className = 'set-field';
-  const bioLabel = document.createElement('label');
-  bioLabel.textContent = 'Bio';
+  const bioField = el('div', 'set-field');
+  const bioLabel = el('label', undefined, 'Bio');
   bioLabel.htmlFor = 'set-bio';
-  const bioInput = document.createElement('textarea');
+  const bioInput = el('textarea');
   bioInput.id = 'set-bio';
   bioInput.rows = 3;
   bioInput.maxLength = 200;
-  bioInput.value = meUser?.bio ?? '';
   bioField.append(bioLabel, bioInput);
-  const bioSave = document.createElement('button');
-  bioSave.className = 'set-save';
-  bioSave.textContent = 'Save bio';
+  const bioSave = el('button', 'set-save', 'Save bio');
   bioSave.addEventListener('click', async () => {
     bioSave.disabled = true;
     try {
@@ -164,46 +234,142 @@ export function openSettingsModal(): void {
       bioSave.disabled = false;
     }
   });
-  profileSection.append(bioHint, bioField, bioSave);
-  root.appendChild(profileSection);
 
-  // ── email (set once — foundation for password reset later) ──
-  const emailHint = document.createElement('p');
-  emailHint.className = 'set-hint';
-  emailHint.textContent =
-    'Email — set once and it cannot be changed. Needed later for password reset.';
-  const emailField = field('Email', 'email', 'set-email');
-  const emailInput = emailField.querySelector<HTMLInputElement>('#set-email')!;
-  const emailSave = document.createElement('button');
-  emailSave.className = 'set-save';
-  emailSave.textContent = 'Save email';
-  const emailStatus = document.createElement('div');
-  emailStatus.className = 'set-hint';
-  const emailResend = document.createElement('button');
-  emailResend.className = 'set-save';
-  emailResend.textContent = 'Resend verification email';
-  emailResend.style.display = 'none';
-  emailResend.addEventListener('click', async () => {
-    emailResend.disabled = true;
-    try {
-      const r = await api.resendVerification();
-      toast(r.sent ? `Verification email sent to ${r.to}` : r.error ?? 'Could not send', r.sent ? 'info' : 'error');
-    } catch (err) {
-      toast(err instanceof Error ? err.message : 'Could not send', 'error');
-    } finally {
-      emailResend.disabled = false;
-    }
+  avatarRow.append(fileInput);
+  detailsHidden.append(nameField, nameSave, avatarRow, avatarBtns, bioField, bioSave);
+  details.append(detailsHidden);
+  editBtn.addEventListener('click', () => {
+    const open = details.classList.toggle('open');
+    editBtn.textContent = open ? 'Done' : 'Edit';
   });
-  const me = store.state.session?.user;
-  if (me?.email) {
-    emailInput.value = me.email;
-    emailInput.disabled = true;
-    emailSave.style.display = 'none';
-    emailStatus.textContent = me.emailVerified ? '✓ verified' : 'not verified yet — check your inbox';
-    if (!me.emailVerified) emailResend.style.display = '';
-  } else {
-    emailStatus.textContent = 'No email on file.';
+  profileSection.append(profileRow, details);
+
+  function paintProfile(): void {
+    const me = store.state.session?.user;
+    if (!me) return;
+    avatarBox.innerHTML = '';
+    avatarBox.appendChild(avatarEl(me.id, me.displayName, 64, me.avatarUrl));
+    profileName.textContent = me.displayName;
+    profileHandle.textContent = `@${me.username}`;
+    if (!nameInput.value) nameInput.value = me.displayName;
+    if (!bioInput.value) bioInput.value = me.bio ?? '';
+    pickBtn.textContent = me.avatarUrl ? 'Change picture' : 'Upload picture';
+    removeBtn.style.display = me.avatarUrl ? '' : 'none';
   }
+
+  // ── Appearance ────────────────────────────────────────────────────────
+  const appearanceSection = el('section');
+  appearanceSection.id = 'set-appearance';
+
+  const themeRow = el('div', 'set-row');
+  const themeText = el('div', 'set-row-text');
+  themeText.append(el('div', 'label', 'Theme'), el('div', 'sub', 'Follows this device'));
+  const themeSide = el('div', 'set-row-side');
+  const themeChips = el('div', 'set-chips');
+  const chipDark = el('button', 'set-chip', 'Dark');
+  const chipLight = el('button', 'set-chip', 'Light');
+  chipDark.type = 'button';
+  chipLight.type = 'button';
+  const paintTheme = (theme: Theme): void => {
+    chipDark.classList.toggle('on', theme === 'dark');
+    chipLight.classList.toggle('on', theme === 'light');
+  };
+  chipDark.addEventListener('click', () => {
+    applyTheme('dark');
+    paintTheme('dark');
+  });
+  chipLight.addEventListener('click', () => {
+    applyTheme('light');
+    paintTheme('light');
+  });
+  paintTheme(currentTheme());
+  themeChips.append(chipDark, chipLight);
+  themeSide.append(themeChips);
+  themeRow.append(themeText, themeSide);
+
+  const accentRow = el('div', 'set-row stack');
+  const accentText = el('div', 'set-row-text');
+  accentText.append(el('div', 'label', 'Accent'), el('div', 'sub', 'A colour, or a gradient'));
+  const swatches = el('div', 'set-swatches');
+  const accentNote = el('div', 'set-hint', '');
+
+  const currentAccent = (): string | null => store.state.session?.user.accent ?? null;
+
+  const paintSwatches = (activeId?: string | null): void => {
+    // explicit id wins: the click has already applied the new accent, and the
+    // account round-trip has not landed yet
+    const active = activeId === undefined ? accentPreset(currentAccent()).id : activeId ?? '';
+    for (const btn of swatches.querySelectorAll<HTMLButtonElement>('.set-swatch')) {
+      btn.classList.toggle('on', btn.dataset.accent === active);
+      btn.setAttribute('aria-pressed', String(btn.dataset.accent === active));
+    }
+  };
+
+  for (const preset of ACCENT_PRESETS) {
+    const b = el('button', 'set-swatch');
+    b.type = 'button';
+    b.dataset.accent = preset.id;
+    b.title = preset.label;
+    b.setAttribute('aria-label', preset.label);
+    b.style.background = preset.gradient ?? preset.css;
+    b.addEventListener('click', () => {
+      // apply immediately so the whole screen responds, then persist
+      applyAccent(preset.id);
+      paintSwatches(preset.id);
+      void (async () => {
+        try {
+          const { user } = await api.updateMe({ accent: preset.id });
+          store.setUser(user);
+          paintSwatches(user.accent ?? null);
+          accentNote.textContent = '';
+        } catch (err) {
+          accentNote.textContent = err instanceof Error ? err.message : 'Could not save the accent';
+        }
+      })();
+    });
+    swatches.appendChild(b);
+  }
+  accentRow.append(accentText, swatches);
+  appearanceSection.append(card(themeRow), card(accentRow), accentNote);
+
+  // ── Account ───────────────────────────────────────────────────────────
+  const accountSection = el('section');
+  accountSection.id = 'set-account';
+
+  const emailField = el('div', 'set-field');
+  const emailLabel = el('label', 'visually-hidden', 'Email address');
+  emailLabel.htmlFor = 'set-email';
+  const emailInput = emailField.querySelector<HTMLInputElement>('#set-email')!;
+  const emailSave = el('button', 'set-save', 'Save email');
+  const emailStatus = el('div', 'set-hint', '');
+  const emailResend = el('button', 'set-link', 'Resend verification');
+  (emailField as HTMLDivElement).append(emailLabel, (() => {
+    const input = el('input');
+    input.type = 'email';
+    input.id = 'set-email';
+    input.autocomplete = 'off';
+    input.placeholder = 'you@example.com';
+    return input;
+  })());
+  const emailCard = card(emailField, emailStatus);
+
+  const paintEmail = (): void => {
+    const me = store.state.session?.user;
+    if (!me) return;
+    if (me.email) {
+      emailInput.value = me.email;
+      emailInput.disabled = true;
+      emailSave.style.display = 'none';
+      emailStatus.textContent = me.emailVerified
+        ? '✓ verified'
+        : 'Not verified yet — check your inbox.';
+      emailResend.style.display = me.emailVerified ? 'none' : '';
+    } else {
+      emailStatus.textContent = 'No email on file — adding one is needed for password reset.';
+      emailResend.style.display = 'none';
+    }
+  };
+
   emailSave.addEventListener('click', async () => {
     const email = emailInput.value.trim();
     if (!email) {
@@ -214,32 +380,30 @@ export function openSettingsModal(): void {
     try {
       const { user } = await api.updateMe({ email });
       store.setUser(user);
+      paintEmail();
       toast('Email saved — check your inbox to confirm it', 'info');
-      emailInput.disabled = true;
-      emailSave.style.display = 'none';
-      emailStatus.textContent = 'not verified yet — check your inbox';
-      emailResend.style.display = '';
     } catch (err) {
       toast(err instanceof Error ? err.message : 'Update failed', 'error');
     } finally {
       emailSave.disabled = false;
     }
   });
-  const emailSection = document.createElement('section');
-  emailSection.className = 'set-section';
-  emailSection.append(emailHint, emailField, emailSave, emailStatus, emailResend);
-  root.appendChild(emailSection);
+  emailResend.addEventListener('click', async () => {
+    emailResend.setAttribute('disabled', '');
+    try {
+      const r = await api.resendVerification();
+      toast(r.sent ? `Verification email sent to ${r.to}` : r.error ?? 'Could not send', r.sent ? 'info' : 'error');
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Could not send', 'error');
+    } finally {
+      emailResend.removeAttribute('disabled');
+    }
+  });
 
-  // ── password ──
-  const pwHint = document.createElement('p');
-  pwHint.className = 'set-hint';
-  pwHint.textContent = 'Password — at least 8 characters.';
   const pwCurrent = field('Current password', 'password', 'set-pw-current');
   const pwNew = field('New password', 'password', 'set-pw-new');
   const pwConfirm = field('Confirm new password', 'password', 'set-pw-confirm');
-  const pwSave = document.createElement('button');
-  pwSave.className = 'set-save';
-  pwSave.textContent = 'Change password';
+  const pwSave = el('button', 'set-save', 'Change password');
   pwSave.addEventListener('click', async () => {
     const current = pwCurrent.querySelector<HTMLInputElement>('#set-pw-current')!.value;
     const next = pwNew.querySelector<HTMLInputElement>('#set-pw-new')!.value;
@@ -260,32 +424,62 @@ export function openSettingsModal(): void {
     try {
       await api.updateMe({ currentPassword: current, newPassword: next });
       toast('Password changed', 'info');
-      pwCurrent.querySelector<HTMLInputElement>('#set-pw-current')!.value = '';
       pwNew.querySelector<HTMLInputElement>('#set-pw-new')!.value = '';
       pwConfirm.querySelector<HTMLInputElement>('#set-pw-confirm')!.value = '';
+      pwCurrent.querySelector<HTMLInputElement>('#set-pw-current')!.value = '';
     } catch (err) {
       toast(err instanceof Error ? err.message : 'Update failed', 'error');
     } finally {
       pwSave.disabled = false;
     }
   });
-  const pwSection = document.createElement('section');
-  pwSection.className = 'set-section';
-  pwSection.append(pwHint, pwCurrent, pwNew, pwConfirm, pwSave);
-  root.appendChild(pwSection);
 
-  // ── log out ──
-  const logout = document.createElement('button');
-  logout.className = 'set-logout';
-  logout.textContent = 'Log out';
+  accountSection.append(
+    groupTitle('ACCOUNT'),
+    card(row('Email', 'Used for password reset', emailSave, emailResend)),
+    emailCard,
+    groupTitle('PASSWORD'),
+    card(pwCurrent, pwNew, pwConfirm, pwSave),
+  );
+
+  // ── log out ───────────────────────────────────────────────────────────
+  const logout = el('button', 'set-logout', 'Log out');
   logout.addEventListener('click', () => {
     closeCurrent?.();
-    import('../api').then(({ setToken }) => {
-      setToken(null);
-      location.reload();
-    });
+    setToken(null);
+    location.reload();
   });
-  root.appendChild(logout);
 
-  closeCurrent = openModal(root);
+  scroller.append(profileSection, appearanceSection, accountSection, logout);
+  shell.append(nav, scroller);
+  screen.append(top, shell);
+
+  // ── mount ─────────────────────────────────────────────────────────────
+  document.body.appendChild(screen);
+  requestAnimationFrame(() => screen.classList.add('show'));
+  paintProfile();
+  paintSwatches();
+  paintEmail();
+  markActive();
+
+  // toggles for the shell's "message text" style rows are not part of this
+  // screen yet — only real, persisted preferences live here.
+
+  const onKey = (e: KeyboardEvent): void => {
+    if (e.key === 'Escape') {
+      e.stopPropagation();
+      close();
+    }
+  };
+  function close(): void {
+    document.removeEventListener('keydown', onKey);
+    screen.classList.remove('show');
+    window.setTimeout(() => screen.remove(), 200);
+    closeCurrent = null;
+  }
+  document.addEventListener('keydown', onKey);
+  closeCurrent = close;
 }
+
+// theme.ts exports a preset lookup the settings screen needs for the swatch ring
+export { accentPreset };

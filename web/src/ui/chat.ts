@@ -679,7 +679,7 @@ export function mountChatPane(): void {
   const verifyBanner = document.querySelector('#verify-banner') as HTMLDivElement;
   const verifyBannerBtn = document.querySelector('#verify-banner-btn') as HTMLButtonElement;
   verifyBannerBtn.addEventListener('click', () => {
-    void import('./settings').then((m) => m.openSettingsModal());
+    void import('./settings').then((m) => m.openSettings());
   });
   const renderVerifyBanner = (): void => {
     const user = store.state.session?.user;

@@ -7,6 +7,7 @@ import { refreshChats, openChat } from './actions';
 import { mountLogin } from './ui/login';
 import { mountSidebar } from './ui/sidebar';
 import { mountChatPane } from './ui/chat';
+import { applyAccent, initTheme } from './ui/theme';
 
 const loginView = document.querySelector<HTMLDivElement>('#login-view')!;
 const mainView = document.querySelector<HTMLDivElement>('#main-view')!;
@@ -34,6 +35,8 @@ async function enterApp(): Promise<void> {
 }
 
 async function boot(): Promise<void> {
+  // before anything paints: theme from this device, accent from the account
+  initTheme();
   mountSidebar((chatId) => {
     void openChat(chatId);
   });
@@ -53,6 +56,7 @@ async function boot(): Promise<void> {
   }
   try {
     const { user, requireVerifiedEmail } = await api.me();
+    applyAccent(user.accent ?? null);
     store.setSession({ token, user });
     store.setRequireVerifiedEmail(Boolean(requireVerifiedEmail));
     await enterApp();

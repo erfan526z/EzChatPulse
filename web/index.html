@@ -15,6 +15,12 @@
       <div id="main-view" class="view hidden">
         <aside id="sidebar">
           <header id="sidebar-header">
+            <button id="btn-drawer" class="icon-btn" type="button" title="Menu" aria-label="Menu">☰</button>
+            <h1 id="sidebar-title">Chats</h1>
+            <span id="conn-dot" class="conn-dot" title="connection"></span>
+            <button id="btn-me" class="sidebar-avatar" type="button" title="Settings" aria-label="Settings"></button>
+          </header>
+          <div id="sidebar-search-row">
             <input
               id="sidebar-search"
               type="text"
@@ -23,11 +29,8 @@
               autocomplete="off"
               spellcheck="false"
             />
-          </header>
+          </div>
           <div id="chat-list"></div>
-          <footer id="sidebar-footer">
-            <div id="me-chip"></div>
-          </footer>
           <!-- floating action button + menu: hover above the profile (chat list area) -->
           <button id="btn-new" class="fab-btn" title="New chat or group">＋</button>
           <div id="new-menu" class="hidden">

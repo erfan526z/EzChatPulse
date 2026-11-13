@@ -1,7 +1,8 @@
 import { store } from '../store';
 import { avatarEl, formatTime } from './format';
 import { openCreateGroupModal, openNewChatModal } from './group';
-import { openSettingsModal } from './settings';
+import { openSettings } from './settings';
+import { openDrawer } from './drawer';
 import { api } from '../api';
 import { toast } from './toast';
 import type { UIChat, UIMessage, UserDTO } from '../types';
@@ -14,10 +15,13 @@ function previewText(m: UIMessage | null): string {
 }
 
 export function mountSidebar(onSelect: (chatId: number) => void): void {
+  const sidebar = document.querySelector<HTMLElement>('#sidebar')!;
   const list = document.querySelector('#chat-list')!;
-  const meChip = document.querySelector('#me-chip')!;
-  meChip.addEventListener('click', () => openSettingsModal());
-  (meChip as HTMLElement).title = 'Settings';
+  const drawerBtn = document.querySelector<HTMLButtonElement>('#btn-drawer')!;
+  const meBtn = document.querySelector<HTMLButtonElement>('#btn-me')!;
+  const connDot = document.querySelector<HTMLSpanElement>('#conn-dot')!;
+  drawerBtn.addEventListener('click', () => openDrawer(sidebar));
+  meBtn.addEventListener('click', () => openSettings());
   const search = document.querySelector<HTMLInputElement>('#sidebar-search')!;
   const newBtn = document.querySelector<HTMLButtonElement>('#btn-new')!;
   const newMenu = document.querySelector<HTMLDivElement>('#new-menu')!;
@@ -26,19 +30,21 @@ export function mountSidebar(onSelect: (chatId: number) => void): void {
   let lastKey = '';
   let searching = false;
 
+  let lastMeKey = '';
+
   function renderMe(): void {
     const session = store.state.session;
     if (!session) return;
-    meChip.innerHTML = '';
-    meChip.appendChild(avatarEl(session.user.id, session.user.displayName, 36, session.user.avatarUrl));
-    const span = document.createElement('span');
-    span.className = 'me-name';
-    span.textContent = session.user.displayName;
-    meChip.appendChild(span);
-    const dot = document.createElement('span');
-    dot.className = `conn-dot conn-${store.state.connection}`;
-    dot.title = `connection: ${store.state.connection}`;
-    meChip.appendChild(dot);
+    // the avatar only needs repainting when the picture or name changes
+    const key = `${session.user.displayName}|${session.user.avatarUrl ?? ''}`;
+    if (key !== lastMeKey) {
+      lastMeKey = key;
+      meBtn.innerHTML = '';
+      meBtn.appendChild(avatarEl(session.user.id, session.user.displayName, 32, session.user.avatarUrl));
+      meBtn.title = `${session.user.displayName} — settings`;
+    }
+    connDot.className = `conn-dot conn-${store.state.connection}`;
+    connDot.title = `connection: ${store.state.connection}`;
   }
 
   function chatItem(chat: UIChat): HTMLElement {
