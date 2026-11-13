@@ -2188,7 +2188,7 @@ button {
   align-items: center;
   gap: var(--s-4);
   margin: 0;
-  padding: var(--s-4) var(--s-4) var(--s-3);
+  padding: var(--s-4) var(--s-3) var(--s-3);
   border-radius: var(--r-card);
   background: transparent;
   transition: background var(--dur-fast) var(--ease);
@@ -2648,7 +2648,7 @@ button.set-row {
 }
 
 .set-profile.editing {
-  background: var(--bg-raised);
+  background: transparent;
 }
 
 .set-profile.editing .set-profile-text {
@@ -2687,7 +2687,7 @@ button.set-row {
 .profile-editor {
   display: grid;
   grid-template-rows: 0fr;
-  margin: 0 var(--s-3);
+  margin: 0;
   transition: grid-template-rows var(--dur-med) var(--ease);
 }
 
@@ -2708,9 +2708,8 @@ button.set-row {
 
 /* the unwind: each row settles in a beat after the one above it */
 .pe-row {
-  padding: var(--s-2) var(--s-3) var(--s-3);
-  border-radius: var(--r-card);
-  background: var(--bg-raised);
+  padding: var(--s-1) var(--s-3) var(--s-3);
+  background: transparent;
   opacity: 0;
   transform: translateY(-6px);
   transition: opacity 180ms var(--ease), transform 180ms var(--ease);
