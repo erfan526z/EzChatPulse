@@ -189,22 +189,75 @@ export function openSettings(): void {
   const editSide = el('div', 'set-row-side');
   const editLabel = el('span', 'set-link', 'Edit');
   editSide.append(editLabel, chevron());
-  profileRow.append(avatarBox, profileText, editSide);
 
-  const details = el('div', 'set-details');
-  const detailsHidden = el('div', 'set-details-body');
+  // the picture's own actions, revealed only while editing
+  const avatarActions = el('div', 'set-avatar-actions');
+  const pickBtn = el('button', 'set-avatar-btn', 'Edit');
+  const removeBtn = el('button', 'set-avatar-btn danger', 'Delete');
+  pickBtn.type = 'button';
+  removeBtn.type = 'button';
+  avatarActions.append(pickBtn, removeBtn);
+  const fileInput = el('input');
+  fileInput.type = 'file';
+  fileInput.accept = 'image/*';
+  fileInput.hidden = true;
+  avatarActions.appendChild(fileInput);
 
-  const nameField = field('Display name', 'text', 'set-name');
-  const nameInput = nameField.querySelector<HTMLInputElement>('#set-name')!;
+  profileRow.append(avatarBox, profileText, avatarActions, editSide);
+
+  // ── rows 2 and 3: the display name and the bio, each with its own Apply ──
+  const editor = el('div', 'profile-editor');
+  const editorInner = el('div', 'profile-editor-inner');
+
+  const nameInput = el('input');
+  nameInput.type = 'text';
+  nameInput.id = 'set-name';
   nameInput.maxLength = 32;
-  const nameSave = el('button', 'set-save', 'Save name');
-  nameSave.addEventListener('click', async () => {
+  nameInput.autocomplete = 'off';
+  nameInput.placeholder = 'Display name';
+
+  const bioInput = el('textarea');
+  bioInput.id = 'set-bio';
+  bioInput.rows = 2;
+  bioInput.maxLength = 200;
+  bioInput.placeholder = 'A short line about you';
+
+  const nameApply = el('button', 'pe-apply', 'Apply');
+  nameApply.type = 'button';
+  const bioApply = el('button', 'pe-apply', 'Apply');
+  bioApply.type = 'button';
+
+  /** One unwound row: label + Apply on the top line, the field underneath. */
+  function editRow(labelText: string, control: HTMLElement, apply: HTMLButtonElement): HTMLDivElement {
+    const row = el('div', 'pe-row');
+    const head = el('div', 'pe-head');
+    head.append(el('div', 'pe-label', labelText), apply);
+    row.append(head, control);
+    return row;
+  }
+
+  editorInner.append(editRow('Display name', nameInput, nameApply), editRow('Bio', bioInput, bioApply));
+  editor.append(editorInner);
+  profileSection.append(profileRow, editor);
+
+  const currentName = (): string => store.state.session?.user.displayName ?? '';
+  const currentBio = (): string => store.state.session?.user.bio ?? '';
+
+  /** Apply is only live when the field actually differs from what is stored. */
+  function syncApply(): void {
+    nameApply.disabled = !nameInput.value.trim() || nameInput.value.trim() === currentName();
+    bioApply.disabled = bioInput.value === currentBio();
+  }
+  nameInput.addEventListener('input', syncApply);
+  bioInput.addEventListener('input', syncApply);
+
+  nameApply.addEventListener('click', async () => {
     const displayName = nameInput.value.trim();
     if (!displayName) {
       toast('Display name cannot be empty', 'error');
       return;
     }
-    nameSave.disabled = true;
+    nameApply.disabled = true;
     try {
       const { user } = await api.updateMe({ displayName });
       store.setUser(user);
@@ -213,20 +266,25 @@ export function openSettings(): void {
     } catch (err) {
       toast(err instanceof Error ? err.message : 'Update failed', 'error');
     } finally {
-      nameSave.disabled = false;
+      syncApply();
     }
   });
 
-  const avatarRow = el('div', 'set-avatar-row');
-  const pickBtn = el('button', 'set-save secondary', 'Change picture');
-  const removeBtn = el('button', 'set-save secondary', 'Remove picture');
-  const fileInput = el('input');
-  fileInput.type = 'file';
-  fileInput.accept = 'image/*';
-  fileInput.hidden = true;
-  const avatarBtns = el('div', 'set-avatar-btns');
-  avatarBtns.append(pickBtn, removeBtn);
+  bioApply.addEventListener('click', async () => {
+    bioApply.disabled = true;
+    try {
+      const { user } = await api.updateMe({ bio: bioInput.value });
+      store.setUser(user);
+      paintProfile();
+      toast('Bio updated', 'info');
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Update failed', 'error');
+    } finally {
+      syncApply();
+    }
+  });
 
+  // ── the picture: replace or remove, from the row itself ─────────────────
   pickBtn.addEventListener('click', () => fileInput.click());
   fileInput.addEventListener('change', async () => {
     const file = fileInput.files?.[0];
@@ -259,51 +317,54 @@ export function openSettings(): void {
     }
   });
 
-  const bioField = el('div', 'set-field');
-  const bioLabel = el('label', undefined, 'Bio');
-  bioLabel.htmlFor = 'set-bio';
-  const bioInput = el('textarea');
-  bioInput.id = 'set-bio';
-  bioInput.rows = 3;
-  bioInput.maxLength = 200;
-  bioField.append(bioLabel, bioInput);
-  const bioSave = el('button', 'set-save', 'Save bio');
-  bioSave.addEventListener('click', async () => {
-    bioSave.disabled = true;
-    try {
-      const { user } = await api.updateMe({ bio: bioInput.value });
-      store.setUser(user);
-      toast('Bio updated', 'info');
-    } catch (err) {
-      toast(err instanceof Error ? err.message : 'Update failed', 'error');
-    } finally {
-      bioSave.disabled = false;
-    }
-  });
+  // ── open/close: the picture grows, the rows unwind behind it ────────────
+  let editing = false;
+  // both states are explicit rem values so the transition has something to
+  // animate between (clearing the inline size would snap back to 3rem)
+  const setAvatarSize = (big: boolean): void => {
+    const av = avatarBox.querySelector<HTMLElement>('.avatar');
+    if (!av) return;
+    const size = big ? '5.25rem' : '3.5rem';
+    av.style.width = size;
+    av.style.height = size;
+    av.style.fontSize = big ? '1.75rem' : '';
+  };
 
-  avatarRow.append(fileInput);
-  detailsHidden.append(nameField, nameSave, avatarRow, avatarBtns, bioField, bioSave);
-  details.append(detailsHidden);
-  profileRow.addEventListener('click', () => {
-    const open = details.classList.toggle('open');
-    profileRow.classList.toggle('open', open);
-    editLabel.textContent = open ? 'Done' : 'Edit';
+  function setEditing(on: boolean): void {
+    editing = on;
+    profileRow.classList.toggle('editing', on);
+    editor.classList.toggle('open', on);
+    editLabel.textContent = on ? 'Done' : 'Edit';
+    if (on) {
+      nameInput.value = currentName();
+      bioInput.value = currentBio();
+      syncApply();
+    }
+    setAvatarSize(on);
+  }
+
+  editSide.addEventListener('click', (e) => {
+    e.stopPropagation();
+    setEditing(!editing);
   });
-  profileSection.append(profileRow, details);
 
   function paintProfile(): void {
     const me = store.state.session?.user;
     if (!me) return;
     avatarBox.innerHTML = '';
     avatarBox.appendChild(avatarEl(me.id, me.displayName, 56, me.avatarUrl));
-    const dot = el('span', `presence-dot ${me.online ? 'online' : ''}`);
-    avatarBox.appendChild(dot);
+    avatarBox.appendChild(el('span', `presence-dot ${me.online ? 'online' : ''}`));
     profileName.textContent = me.displayName;
     profileHandle.textContent = `@${me.username}`;
-    if (!nameInput.value) nameInput.value = me.displayName;
-    if (!bioInput.value) bioInput.value = me.bio ?? '';
-    pickBtn.textContent = me.avatarUrl ? 'Change picture' : 'Upload picture';
     removeBtn.style.display = me.avatarUrl ? '' : 'none';
+    pickBtn.textContent = me.avatarUrl ? 'Edit' : 'Add';
+    // never overwrite what is being typed
+    if (!editing) {
+      nameInput.value = me.displayName;
+      bioInput.value = me.bio ?? '';
+    }
+    syncApply();
+    setAvatarSize(editing);
   }
 
   // ── Appearance ────────────────────────────────────────────────────────

@@ -2633,3 +2633,156 @@ button.set-row {
 .set-profile.open .set-chev {
   transform: rotate(90deg);
 }
+
+/* ── profile editing: the picture grows, two rows unwind behind it ──────── */
+.set-avatar .avatar {
+  transition: width var(--dur-med) var(--ease), height var(--dur-med) var(--ease),
+    font-size var(--dur-med) var(--ease);
+}
+
+.set-avatar-actions {
+  display: none;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.set-profile.editing {
+  background: var(--bg-raised);
+}
+
+.set-profile.editing .set-profile-text {
+  display: none;
+}
+
+/* nothing to push against once the name is hidden — keep Done at the far edge */
+.set-profile .set-row-side {
+  margin-left: auto;
+}
+
+.set-profile.editing .set-avatar-actions {
+  display: flex;
+}
+
+.set-avatar-btn {
+  padding: 0.375rem 0.625rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 0.625rem;
+  background: var(--bg-press);
+  color: var(--text-1);
+  font: inherit;
+  font-size: var(--fs-12);
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease);
+}
+
+.set-avatar-btn:hover {
+  background: var(--bg-raised);
+}
+
+.set-avatar-btn.danger {
+  color: var(--danger);
+}
+
+.profile-editor {
+  display: grid;
+  grid-template-rows: 0fr;
+  margin: 0 var(--s-3);
+  transition: grid-template-rows var(--dur-med) var(--ease);
+}
+
+.profile-editor.open {
+  grid-template-rows: 1fr;
+}
+
+.profile-editor-inner {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  overflow: hidden;
+}
+
+.profile-editor.open .profile-editor-inner {
+  padding-top: var(--s-2);
+}
+
+/* the unwind: each row settles in a beat after the one above it */
+.pe-row {
+  padding: var(--s-2) var(--s-3) var(--s-3);
+  border-radius: var(--r-card);
+  background: var(--bg-raised);
+  opacity: 0;
+  transform: translateY(-6px);
+  transition: opacity 180ms var(--ease), transform 180ms var(--ease);
+}
+
+.profile-editor.open .pe-row {
+  opacity: 1;
+  transform: none;
+}
+
+.profile-editor.open .pe-row:nth-child(2) {
+  transition-delay: 70ms;
+}
+
+.pe-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  margin-bottom: 0.375rem;
+}
+
+.pe-label {
+  font-size: var(--fs-12);
+  color: var(--text-3);
+}
+
+.pe-row input,
+.pe-row textarea {
+  width: 100%;
+  padding: 0.5rem var(--s-3);
+  border-radius: 0.75rem;
+  border: 1px solid var(--border);
+  background: var(--bg-screen);
+  color: var(--text-1);
+  font: inherit;
+  font-size: var(--fs-14);
+  outline: none;
+  transition: border-color var(--dur-fast) var(--ease);
+}
+
+.pe-row textarea {
+  min-height: 3.25rem;
+  resize: vertical;
+  line-height: 1.4;
+}
+
+.pe-row input:focus,
+.pe-row textarea:focus {
+  border-color: var(--border-strong);
+}
+
+.pe-apply {
+  padding: 0.3rem 0.7rem;
+  border: 0;
+  border-radius: var(--r-pill);
+  background-color: var(--accent);
+  background-image: var(--accent-image);
+  color: var(--text-on-accent);
+  font: inherit;
+  font-size: var(--fs-12);
+  font-weight: var(--fw-semibold);
+  cursor: pointer;
+  transition: opacity var(--dur-fast) var(--ease), filter var(--dur-fast) var(--ease);
+}
+
+.pe-apply:hover:not(:disabled) {
+  filter: brightness(1.06);
+}
+
+/* nothing to apply yet */
+.pe-apply:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
