@@ -38,12 +38,11 @@ export async function openProfile(userId: number): Promise<void> {
   const card = document.createElement('div');
   card.className = 'profile-card';
 
+  // ── head: big avatar, name, handle, presence (the lab's centred block) ──
   const head = document.createElement('div');
   head.className = 'profile-head';
   const avatar = avatarEl(user.id, user.displayName, 84, user.avatarUrl);
   avatar.classList.add('profile-avatar');
-  const headText = document.createElement('div');
-  headText.className = 'profile-head-text';
   const nameEl = document.createElement('div');
   nameEl.className = 'profile-name';
   nameEl.textContent = user.displayName;
@@ -53,26 +52,31 @@ export async function openProfile(userId: number): Promise<void> {
   const presence = document.createElement('div');
   presence.className = 'profile-presence';
   presence.textContent = user.online ? 'online' : formatLastSeen(user.lastSeenAt);
-  headText.append(nameEl, handle, presence);
-  head.append(avatar, headText);
+  head.append(avatar, nameEl, handle, presence);
   card.appendChild(head);
 
-  if (user.bio) {
-    const bio = document.createElement('p');
-    bio.className = 'profile-bio';
-    bio.textContent = user.bio;
-    card.appendChild(bio);
-  }
+  // ── fields: value above its label, as in the lab ──────────────────────
+  const fieldGroup = (value: string, label: string): HTMLDivElement => {
+    const g = document.createElement('div');
+    g.className = 'profile-field';
+    const v = document.createElement('div');
+    v.className = 'profile-field-value';
+    v.textContent = value;
+    const l = document.createElement('div');
+    l.className = 'profile-field-label';
+    l.textContent = label;
+    g.append(v, l);
+    return g;
+  };
 
-  const meta = document.createElement('div');
-  meta.className = 'profile-meta';
-  meta.textContent = `member since ${new Date(user.createdAt).toLocaleDateString()}`;
-  card.appendChild(meta);
+  if (user.bio) card.appendChild(fieldGroup(user.bio, 'Bio'));
+  card.appendChild(fieldGroup(`@${user.username}`, 'Username'));
+  card.appendChild(fieldGroup(`member since ${new Date(user.createdAt).toLocaleDateString()}`, 'Joined'));
 
   if (!isMe) {
     const groupsTitle = document.createElement('div');
     groupsTitle.className = 'profile-section-title';
-    groupsTitle.textContent = commonGroups.length ? `Common groups · ${commonGroups.length}` : 'No common groups';
+    groupsTitle.textContent = commonGroups.length ? 'Common groups' : 'No common groups';
     card.appendChild(groupsTitle);
 
     if (commonGroups.length) {
@@ -82,7 +86,15 @@ export async function openProfile(userId: number): Promise<void> {
         const row = document.createElement('button');
         row.type = 'button';
         row.className = 'profile-group';
-        row.textContent = g.name;
+        const gAvatar = avatarEl(g.id, g.name, 32);
+        gAvatar.classList.add('group-avatar');
+        const gName = document.createElement('span');
+        gName.className = 'profile-group-name';
+        gName.textContent = g.name;
+        const chev = document.createElement('span');
+        chev.className = 'profile-group-chev';
+        chev.textContent = '›';
+        row.append(gAvatar, gName, chev);
         row.addEventListener('click', () => {
           close();
           void openChat(g.id);

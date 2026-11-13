@@ -57,12 +57,22 @@ export function openModal(content: HTMLElement): () => void {
   requestAnimationFrame(() => overlay.classList.add('show'));
 
   const close = () => {
+    document.removeEventListener('keydown', onKey);
     overlay.classList.remove('show');
     setTimeout(() => overlay.remove(), 200);
   };
   overlay.addEventListener('click', (e) => {
     if (e.target === overlay) close();
   });
+
+  // Escape closes the topmost dialog, like every other overlay in the app
+  const onKey = (e: KeyboardEvent): void => {
+    if (e.key !== 'Escape') return;
+    e.stopPropagation();
+    close();
+  };
+  document.addEventListener('keydown', onKey);
+
   return close;
 }
 

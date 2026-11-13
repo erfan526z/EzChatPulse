@@ -114,6 +114,7 @@ export function openSettings(): void {
     a.addEventListener('click', () => {
       const target = document.getElementById(s.id);
       if (!target) return;
+      for (const other of navItems) other.classList.toggle('on', other === a);
       const delta = target.getBoundingClientRect().top - scroller.getBoundingClientRect().top;
       scroller.scrollTo({ top: scroller.scrollTop + delta - 8, behavior: 'smooth' });
     });
@@ -123,12 +124,17 @@ export function openSettings(): void {
 
   // mark the section under the reading band
   const markActive = (): void => {
-    const edge = scroller.getBoundingClientRect().top + scroller.clientHeight * 0.35;
+    // a tight line under the top bar, with one exception: at the very bottom the
+    // last section is what you are reading, even if it cannot reach the top
+    const edge = scroller.getBoundingClientRect().top + 24;
+    const scrollable = scroller.scrollHeight > scroller.clientHeight + 8;
+    const atBottom = scrollable && scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 4;
     let current: string = SECTIONS[0].id;
     for (const s of SECTIONS) {
       const node = document.getElementById(s.id);
       if (node && node.getBoundingClientRect().top <= edge) current = s.id;
     }
+    if (atBottom) current = SECTIONS[SECTIONS.length - 1]?.id ?? current;
     for (const a of navItems) a.classList.toggle('on', a.dataset.target === current);
   };
   scroller.addEventListener('scroll', markActive, { passive: true });
@@ -351,7 +357,9 @@ export function openSettings(): void {
     input.placeholder = 'you@example.com';
     return input;
   })());
-  const emailCard = card(emailField, emailStatus);
+  const emailBody = el('div', 'set-card-body');
+  emailBody.append(emailField, emailStatus);
+  const emailCard = card(row('Email', 'Used for password reset', emailSave, emailResend), emailBody);
 
   const paintEmail = (): void => {
     const me = store.state.session?.user;
@@ -435,22 +443,22 @@ export function openSettings(): void {
   });
 
   accountSection.append(
-    groupTitle('ACCOUNT'),
-    card(row('Email', 'Used for password reset', emailSave, emailResend)),
+    groupTitle('Account'),
     emailCard,
-    groupTitle('PASSWORD'),
+    groupTitle('Password'),
     card(pwCurrent, pwNew, pwConfirm, pwSave),
   );
 
   // ── log out ───────────────────────────────────────────────────────────
-  const logout = el('button', 'set-logout', 'Log out');
+  const logout = el('button', 'set-danger-row', 'Log out');
+  logout.type = 'button';
   logout.addEventListener('click', () => {
     closeCurrent?.();
     setToken(null);
     location.reload();
   });
 
-  scroller.append(profileSection, appearanceSection, accountSection, logout);
+  scroller.append(profileSection, appearanceSection, accountSection, card(logout));
   shell.append(nav, scroller);
   screen.append(top, shell);
 
@@ -460,7 +468,7 @@ export function openSettings(): void {
   paintProfile();
   paintSwatches();
   paintEmail();
-  markActive();
+  requestAnimationFrame(markActive);
 
   // toggles for the shell's "message text" style rows are not part of this
   // screen yet — only real, persisted preferences live here.

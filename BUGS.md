@@ -90,3 +90,19 @@ Feature rounds (edit/delete, settings, admin, emoji, reply/email/soft-delete, co
 4. When the project moves to a public repo, migrate open entries to real issues; this file stays as the changelog reference.
 
 Full per-issue writeups from earlier rounds are preserved in git history (this file was slimmed Aug 15).
+
+## CP-32 — five defects found reviewing the ported UI on desktop · FIXED (not deployed)
+
+Found from a review pass on the real client at 1920×1000 (not the lab). All fixed
+and verified at that viewport; none deployed yet.
+
+| # | Symptom | Cause | Fix |
+|---|---------|-------|-----|
+| 1 | Dialog text fields were raw browser default (white, square) | the new stylesheet only styled settings fields; the group/new-chat dialogs build bare `input`s | shared dialog-field styles (bg, border, radius, focus ring) |
+| 2 | "No chat selected" page lost: the list stretched across the window | the one-column rule for a hidden chat pane was not gated behind the phone breakpoint | collapse only ≤820 px; wide screens keep two columns and the empty state |
+| 3 | Profile card did not match the lab; common groups had no avatar | card kept the old left-aligned head and text-only rows | centred head, value-over-label field groups, group rows with avatar + chevron |
+| 4 | Settings: Log out floated at the bottom, Email split across two cards | layout artefacts of the first pass | Log out is an account row in its own card; Email label/input/status in one card |
+| 5 | Settings nav highlighted "Account" while the page was at the top | `markActive()` measured before layout (every section at 0) and treated any short page as "at the bottom" | deferred one frame; "bottom" only when the panel actually overflows |
+
+Also: Escape now closes any dialog opened through `openModal()` — the drawer,
+settings and profile already worked that way, the modals did not.
