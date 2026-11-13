@@ -2245,6 +2245,7 @@ button {
   font-size: var(--fs-11);
   font-weight: var(--fw-semibold);
   letter-spacing: 0.08em;
+  text-transform: uppercase;
   color: var(--text-3);
 }
 
@@ -2271,8 +2272,8 @@ button {
   padding: var(--s-3) var(--s-3);
 }
 
-.set-row + .set-row,
-.set-card > .set-row + .set-card {
+.set-card > .set-row + .set-row,
+.set-card > .set-expand + .set-row {
   border-top: 1px solid var(--border);
 }
 
@@ -2514,4 +2515,107 @@ button {
 
 .set-danger-row:hover {
   background: rgba(248, 113, 113, 0.1);
+}
+
+/* navigable rows: value + chevron on the right, body expands underneath */
+.set-row.clickable {
+  cursor: pointer;
+}
+
+.set-row.clickable:hover {
+  background: var(--bg-press);
+}
+
+.set-row-value {
+  max-width: 12rem;
+  overflow: hidden;
+  font-size: var(--fs-13);
+  color: var(--text-3);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.set-chev {
+  font-size: var(--fs-18);
+  line-height: 1;
+  color: var(--text-3);
+  transition: transform var(--dur-fast) var(--ease);
+}
+
+.set-row.open .set-chev {
+  transform: rotate(90deg);
+}
+
+.set-row.danger .label {
+  color: var(--danger);
+}
+
+.set-row.danger:hover {
+  background: rgba(248, 113, 113, 0.1);
+}
+
+.set-expand {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows var(--dur-med) var(--ease);
+}
+
+.set-expand.open {
+  grid-template-rows: 1fr;
+}
+
+.set-expand-inner {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  overflow: hidden;
+  padding: 0 var(--s-3);
+}
+
+.set-expand.open > .set-expand-inner {
+  padding-bottom: var(--s-3);
+}
+
+.set-expand-inner .set-field {
+  margin: 0;
+}
+
+.set-expand-inner .set-save,
+.set-expand-inner .set-link {
+  align-self: flex-start;
+}
+
+.set-expand-inner .set-link {
+  text-align: left;
+}
+
+.set-expand-inner .set-hint {
+  margin: 0;
+}
+
+/* a row rendered as a <button> (log out) must not inherit browser chrome */
+button.set-row {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+}
+
+/* the profile row behaves like the other navigable rows */
+.set-profile {
+  cursor: pointer;
+}
+
+.set-profile:hover {
+  background: var(--bg-press);
+}
+
+.set-profile .set-avatar {
+  position: relative;
+}
+
+.set-profile.open .set-chev {
+  transform: rotate(90deg);
 }

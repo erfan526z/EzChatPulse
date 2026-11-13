@@ -82,6 +82,44 @@ function toggle(initial: boolean, onChange: (next: boolean) => void): HTMLButton
   return b;
 }
 
+function chevron(): HTMLSpanElement {
+  return el('span', 'set-chev', '›');
+}
+
+/**
+ * A settings row that opens something: label (+ sub) on the left, an optional
+ * muted value and a chevron on the right. Rows live inside one card per section
+ * and are separated by hairlines, as in the lab.
+ */
+function navRow(
+  labelText: string,
+  sub: string | undefined,
+  onClick: () => void,
+): { row: HTMLDivElement; value: HTMLSpanElement } {
+  const r = el('div', 'set-row clickable');
+  const text = el('div', 'set-row-text');
+  text.append(el('div', 'label', labelText));
+  if (sub) text.append(el('div', 'sub', sub));
+  const side = el('div', 'set-row-side');
+  const value = el('span', 'set-row-value', '');
+  side.append(value, chevron());
+  r.append(text, side);
+  r.addEventListener('click', onClick);
+  return { row: r, value };
+}
+
+/** Collapsible body under a row; the chevron turns to point down. */
+function expando(): HTMLDivElement {
+  const body = el('div', 'set-expand');
+  body.append(el('div', 'set-expand-inner'));
+  return body;
+}
+
+function toggleExpando(row: HTMLElement, body: HTMLElement): void {
+  const open = body.classList.toggle('open');
+  row.classList.toggle('open', open);
+}
+
 export function openSettings(): void {
   closeCurrent?.();
   const session = store.state.session;
@@ -148,8 +186,10 @@ export function openSettings(): void {
   const profileName = el('div', 'set-profile-name');
   const profileHandle = el('div', 'set-profile-handle');
   profileText.append(profileName, profileHandle);
-  const editBtn = el('button', 'set-link', 'Edit');
-  profileRow.append(avatarBox, profileText, editBtn);
+  const editSide = el('div', 'set-row-side');
+  const editLabel = el('span', 'set-link', 'Edit');
+  editSide.append(editLabel, chevron());
+  profileRow.append(avatarBox, profileText, editSide);
 
   const details = el('div', 'set-details');
   const detailsHidden = el('div', 'set-details-body');
@@ -244,9 +284,10 @@ export function openSettings(): void {
   avatarRow.append(fileInput);
   detailsHidden.append(nameField, nameSave, avatarRow, avatarBtns, bioField, bioSave);
   details.append(detailsHidden);
-  editBtn.addEventListener('click', () => {
+  profileRow.addEventListener('click', () => {
     const open = details.classList.toggle('open');
-    editBtn.textContent = open ? 'Done' : 'Edit';
+    profileRow.classList.toggle('open', open);
+    editLabel.textContent = open ? 'Done' : 'Edit';
   });
   profileSection.append(profileRow, details);
 
@@ -255,6 +296,8 @@ export function openSettings(): void {
     if (!me) return;
     avatarBox.innerHTML = '';
     avatarBox.appendChild(avatarEl(me.id, me.displayName, 64, me.avatarUrl));
+    const dot = el('span', `presence-dot ${me.online ? 'online' : ''}`);
+    avatarBox.appendChild(dot);
     profileName.textContent = me.displayName;
     profileHandle.textContent = `@${me.username}`;
     if (!nameInput.value) nameInput.value = me.displayName;
@@ -336,30 +379,32 @@ export function openSettings(): void {
     swatches.appendChild(b);
   }
   accentRow.append(accentText, swatches);
-  appearanceSection.append(card(themeRow), card(accentRow), accentNote);
+
+  appearanceSection.append(groupTitle('Appearance'), card(themeRow, accentRow), accentNote);
 
   // ── Account ───────────────────────────────────────────────────────────
   const accountSection = el('section');
   accountSection.id = 'set-account';
 
+  const emailInput = el('input');
+  emailInput.type = 'email';
+  emailInput.id = 'set-email';
+  emailInput.autocomplete = 'off';
+  emailInput.placeholder = 'you@example.com';
+
   const emailField = el('div', 'set-field');
-  const emailLabel = el('label', 'visually-hidden', 'Email address');
-  emailLabel.htmlFor = 'set-email';
-  const emailInput = emailField.querySelector<HTMLInputElement>('#set-email')!;
+  emailField.append(emailInput);
+
   const emailSave = el('button', 'set-save', 'Save email');
   const emailStatus = el('div', 'set-hint', '');
   const emailResend = el('button', 'set-link', 'Resend verification');
-  (emailField as HTMLDivElement).append(emailLabel, (() => {
-    const input = el('input');
-    input.type = 'email';
-    input.id = 'set-email';
-    input.autocomplete = 'off';
-    input.placeholder = 'you@example.com';
-    return input;
-  })());
-  const emailBody = el('div', 'set-card-body');
-  emailBody.append(emailField, emailStatus);
-  const emailCard = card(row('Email', 'Used for password reset', emailSave, emailResend), emailBody);
+  emailResend.style.display = 'none';
+
+  const emailBody = expando();
+  (emailBody.firstElementChild as HTMLElement).append(emailField, emailSave, emailStatus, emailResend);
+
+  const emailRow = navRow('Email', 'Not set', () => toggleExpando(emailRow.row, emailBody));
+  const emailSub = emailRow.row.querySelector<HTMLElement>('.set-row-text .sub')!;
 
   const paintEmail = (): void => {
     const me = store.state.session?.user;
@@ -368,11 +413,15 @@ export function openSettings(): void {
       emailInput.value = me.email;
       emailInput.disabled = true;
       emailSave.style.display = 'none';
+      emailSub.textContent = `${me.email} — ${me.emailVerified ? 'verified' : 'not confirmed'}`;
+      emailRow.value.textContent = '';
       emailStatus.textContent = me.emailVerified
         ? '✓ verified'
         : 'Not verified yet — check your inbox.';
       emailResend.style.display = me.emailVerified ? 'none' : '';
     } else {
+      emailSub.textContent = 'No email on file';
+      emailRow.value.textContent = '';
       emailStatus.textContent = 'No email on file — adding one is needed for password reset.';
       emailResend.style.display = 'none';
     }
@@ -442,23 +491,28 @@ export function openSettings(): void {
     }
   });
 
-  accountSection.append(
-    groupTitle('Account'),
-    emailCard,
-    groupTitle('Password'),
-    card(pwCurrent, pwNew, pwConfirm, pwSave),
-  );
+  const pwBody = expando();
+  (pwBody.firstElementChild as HTMLElement).append(pwCurrent, pwNew, pwConfirm, pwSave);
+  const pwRow = navRow('Change password', 'At least 8 characters', () => toggleExpando(pwRow.row, pwBody));
 
-  // ── log out ───────────────────────────────────────────────────────────
-  const logout = el('button', 'set-danger-row', 'Log out');
-  logout.type = 'button';
-  logout.addEventListener('click', () => {
+  // ── log out: last row of the account card ─────────────────────────────
+  const logoutRow = el('button', 'set-row clickable danger');
+  logoutRow.type = 'button';
+  const logoutText = el('div', 'set-row-text');
+  logoutText.append(el('div', 'label', 'Log out'));
+  logoutRow.append(logoutText);
+  logoutRow.addEventListener('click', () => {
     closeCurrent?.();
     setToken(null);
     location.reload();
   });
 
-  scroller.append(profileSection, appearanceSection, accountSection, card(logout));
+  accountSection.append(
+    groupTitle('Account'),
+    card(emailRow.row, emailBody, pwRow.row, pwBody, logoutRow),
+  );
+
+  scroller.append(profileSection, appearanceSection, accountSection);
   shell.append(nav, scroller);
   screen.append(top, shell);
 
