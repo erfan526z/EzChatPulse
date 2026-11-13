@@ -96,6 +96,16 @@ const migrations: Array<{ version: number; up: (db: Db) => void }> = [
       }
     },
   },
+  {
+    // v10 — theme accent, chosen per account (hex colour or a gradient preset)
+    version: 10,
+    up(db) {
+      const cols = db.prepare('PRAGMA table_info(users)').all() as Array<{ name: string }>;
+      if (!cols.some((c) => c.name === 'accent')) {
+        db.exec('ALTER TABLE users ADD COLUMN accent TEXT');
+      }
+    },
+  },
 ];
 
 function runMigrations(db: Db): void {

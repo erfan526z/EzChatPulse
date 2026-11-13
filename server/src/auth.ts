@@ -22,6 +22,23 @@ export interface PrivateUser extends UserDTO {
   email: string | null;
   emailVerified: boolean;
   bio: string | null;
+  /** theme accent: "#rrggbb" or "grad:<preset>"; null means use the default */
+  accent: string | null;
+}
+
+/* ── accent validation ────────────────────────────────────────────────
+   Stored as a tiny declarative string rather than raw CSS: the client maps a
+   preset name to its gradient, so nothing user-supplied ever reaches a style
+   attribute. */
+export const ACCENT_GRADIENTS = ['sunset', 'ocean', 'aurora', 'candy'] as const;
+const HEX_RE = /^#[0-9a-fA-F]{6}$/;
+
+export function isValidAccent(accent: string): boolean {
+  if (HEX_RE.test(accent)) return true;
+  if (accent.startsWith('grad:')) {
+    return (ACCENT_GRADIENTS as readonly string[]).includes(accent.slice(5));
+  }
+  return false;
 }
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -56,12 +73,14 @@ export function toPrivateDTO(row: {
   email_verified: number;
   bio?: string | null;
   avatar_file_id?: number | null;
+  accent?: string | null;
 }): PrivateUser {
   return {
     ...toDTO(row),
     email: row.email ?? null,
     emailVerified: row.email_verified === 1,
     bio: row.bio ?? null,
+    accent: row.accent ?? null,
   };
 }
 
@@ -83,6 +102,14 @@ export function setAvatar(db: Db, userId: number, fileId: number | null): void {
     if (!file.mime.startsWith('image/')) throw new BadRequest('Avatar must be an image');
   }
   db.prepare('UPDATE users SET avatar_file_id = ? WHERE id = ?').run(fileId, userId);
+}
+
+/** Set or clear the account accent. Null restores the default. */
+export function setAccent(db: Db, userId: number, accent: string | null): void {
+  if (accent !== null && !isValidAccent(accent)) {
+    throw new BadRequest('accent must be #rrggbb or grad:<preset>');
+  }
+  db.prepare('UPDATE users SET accent = ? WHERE id = ?').run(accent, userId);
 }
 
 export function isValidEmail(email: string): boolean {
@@ -193,9 +220,19 @@ export function setEmail(db: Db, userId: number, email: string): PrivateUser {
 /** Private profile (with email) — only for /api/me responses to the user themselves. */
 export function getPrivateUser(db: Db, id: number): PrivateUser | null {
   const row = db
-    .prepare('SELECT id, username, display_name, created_at, email, email_verified, bio, avatar_file_id FROM users WHERE id = ?')
+    .prepare('SELECT id, username, display_name, created_at, email, email_verified, bio, avatar_file_id, accent FROM users WHERE id = ?')
     .get(id) as
-    | { id: number; username: string; display_name: string; created_at: number; email: string | null; email_verified: number; bio: string | null; avatar_file_id: number | null }
+    | {
+        id: number;
+        username: string;
+        display_name: string;
+        created_at: number;
+        email: string | null;
+        email_verified: number;
+        bio: string | null;
+        avatar_file_id: number | null;
+        accent: string | null;
+      }
     | undefined;
   return row ? toPrivateDTO(row) : null;
 }

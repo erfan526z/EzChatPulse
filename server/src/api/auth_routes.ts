@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
 import { getDb, getSetting } from '../db.js';
-import { register, login, requireAuth, getUserById, getPrivateUser, updateDisplayName, changePassword, setEmail, setBio, setAvatar } from '../auth.js';
+import { register, login, requireAuth, getUserById, getPrivateUser, updateDisplayName, changePassword, setEmail, setBio, setAvatar, setAccent } from '../auth.js';
 import { isOnline, broadcastUserUpdate } from '../ws/hub.js';
 import { rateLimit } from '../rate-limit.js';
 import { config } from '../config.js';
@@ -166,7 +166,7 @@ router.post('/me/verify-email', requireAuth, wrap(async (req, res) => {
  * (email is private — never broadcast, never in public DTOs).
  */
 router.patch('/me', requireAuth, wrap(async (req, res) => {
-  const { displayName, currentPassword, newPassword, email, bio, avatarFileId } = req.body ?? {};
+  const { displayName, currentPassword, newPassword, email, bio, avatarFileId, accent } = req.body ?? {};
   const userId = req.userId;
   let privateUser = getPrivateUser(getDb(), userId);
   if (!privateUser) {
@@ -190,6 +190,12 @@ router.patch('/me', requireAuth, wrap(async (req, res) => {
       throw new BadRequest('avatarFileId must be a file id or null');
     }
     setAvatar(getDb(), userId, avatarFileId);
+    privateUser = getPrivateUser(getDb(), userId)!;
+    changed = true;
+  }
+  if (accent !== undefined) {
+    if (accent !== null && typeof accent !== 'string') throw new BadRequest('accent must be a string or null');
+    setAccent(getDb(), userId, accent);
     privateUser = getPrivateUser(getDb(), userId)!;
     changed = true;
   }

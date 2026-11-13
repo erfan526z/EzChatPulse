@@ -214,3 +214,68 @@ test('avatar file is readable by people who share a chat, never by strangers', a
     await ctx.close();
   }
 });
+
+test('accent: per-account theme colour, validated and clearable', async () => {
+  const ctx = await createTestContext();
+  try {
+    const alice = await registerUser(ctx, 'alice', 'Alice', 'password123');
+    const base = `http://127.0.0.1:${ctx.port}`;
+
+    // fresh accounts use the default (null) accent
+    const me0 = await (await fetch(`${base}/api/me`, { headers: auth(alice.token) })).json();
+    assert.equal(me0.user.accent, null);
+
+    // a hex colour round-trips
+    const setHex = await fetch(`${base}/api/me`, {
+      method: 'PATCH',
+      headers: auth(alice.token),
+      body: JSON.stringify({ accent: '#7aa2ff' }),
+    });
+    assert.equal(setHex.status, 200);
+    assert.equal((await setHex.json()).user.accent, '#7aa2ff');
+
+    // a known gradient preset round-trips
+    const setGrad = await fetch(`${base}/api/me`, {
+      method: 'PATCH',
+      headers: auth(alice.token),
+      body: JSON.stringify({ accent: 'grad:sunset' }),
+    });
+    assert.equal(setGrad.status, 200);
+    assert.equal((await setGrad.json()).user.accent, 'grad:sunset');
+
+    // anything else is rejected — nothing raw reaches a style attribute
+    for (const bad of ['red', '#fff', 'linear-gradient(90deg,red,blue)', 'grad:nope', 'javascript:alert(1)']) {
+      const res = await fetch(`${base}/api/me`, {
+        method: 'PATCH',
+        headers: auth(alice.token),
+        body: JSON.stringify({ accent: bad }),
+      });
+      assert.equal(res.status, 400, `accent ${bad} should be rejected`);
+    }
+
+    // null restores the default
+    const cleared = await fetch(`${base}/api/me`, {
+      method: 'PATCH',
+      headers: auth(alice.token),
+      body: JSON.stringify({ accent: null }),
+    });
+    assert.equal((await cleared.json()).user.accent, null);
+
+    // the accent is private: it must not appear in public user DTOs
+    const patchName = await fetch(`${base}/api/me`, {
+      method: 'PATCH',
+      headers: auth(alice.token),
+      body: JSON.stringify({ accent: '#34d399', displayName: 'Alice A' }),
+    });
+    const body = await patchName.json();
+    assert.equal(body.user.accent, '#34d399');
+    const search = await (
+      await fetch(`${base}/api/users?q=alice`, { headers: auth(alice.token) })
+    ).json();
+    const found = search.users.find((u: { username: string }) => u.username === 'alice');
+    assert.ok(found);
+    assert.equal(found.accent, undefined, 'accent must not leak into public DTOs');
+  } finally {
+    await ctx.close();
+  }
+});
