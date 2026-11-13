@@ -142,9 +142,14 @@ class Store {
     if (this.state.session && this.state.session.user.id === user.id) {
       this.state.session.user = user;
     }
+    // keep every cached membership in step: a profile change must show up in the
+    // chat list, the header, the member list and group bubbles without a reload
     for (const chat of this.state.chats.values()) {
       const m = chat.members.find((x) => x.userId === user.id);
-      if (m) m.displayName = user.displayName;
+      if (!m) continue;
+      m.displayName = user.displayName;
+      m.username = user.username;
+      m.avatarUrl = user.avatarUrl ?? null;
     }
     this.notify();
   }

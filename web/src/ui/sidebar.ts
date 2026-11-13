@@ -104,7 +104,9 @@ export function mountSidebar(onSelect: (chatId: number) => void): void {
         .map(
           (c) =>
             `${c.id}:${c.lastMessage?.id ?? 0}:${c.unread}:${c.members
-              .map((m) => `${m.userId}${m.online ? '+on' : ''}`)
+              // name + avatar belong in the key: a profile change from another
+              // member must repaint the row, not just the header
+              .map((m) => `${m.userId}:${m.displayName}:${m.avatarUrl ?? ''}${m.online ? '+on' : ''}`)
               .join(',')}`,
         )
         .join('|');
