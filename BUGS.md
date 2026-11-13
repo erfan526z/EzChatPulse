@@ -127,3 +127,14 @@ same face in both. The differences were values I had invented:
 
 Also removed the invented "Follows this device" sub-line under Theme, so the
 first card matches the lab's height exactly.
+
+### Deployed 2026-11-13 22:56
+
+CP-32, CP-33, CP-34 and CP-35 shipped together with the UI overhaul (round 16).
+
+- rollback snapshot `/opt/chatpulse-rollback-20261113-2221.tgz` (144 MB)
+- pre-deploy DB copy `/opt/chatpulse/data/backups/pre-deploy-20261113-2222.sqlite`
+- migration **v10** applied on boot; `users.accent` present
+- data intact afterwards: 15 users · 21 chats · 370 messages (counts only, no content read)
+- live bundle `index-CMm6CnYP.js` / `index-CqtrFf2Y.css`
+- live tokens verified in the browser: `--accent` #34d399, `--r-bubble` .625rem, root 15px at 1280 / 16px at 390, no JS errors
