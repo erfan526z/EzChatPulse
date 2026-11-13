@@ -146,3 +146,40 @@ CP-32, CP-33, CP-34 and CP-35 shipped together with the UI overhaul (round 16).
 - rollback snapshot `/opt/chatpulse-rollback-20261113-2306.tgz` (138 MB)
 - live bundle `index-BkpxxDQY.js` / `index-B2vM57Ow.css`
 - editor styles confirmed in the served CSS; no JS errors at 1280 / 390
+
+## CP-36 — a long filename gave the thread a horizontal scroller · FIXED
+
+**Reported:** "If a filename is long, the phone will have horizontal scroll."
+
+**Cause:** the bubble was capped at a fixed `26rem` (416 px), which is wider than
+a 390 px phone. A file name is `nowrap`, so its intrinsic width sized the bubble,
+the row could not shrink below that content, and `#messages` (a scroll container
+in both axes) gained a horizontal scrollbar. Measured: bubble **416 px** inside a
+390 px viewport.
+
+**Fix:** cap against the viewport — `max-width: min(var(--bubble-max), 78vw)` —
+and let the row and the file row shrink (`min-width: 0`), so the name ellipsises
+instead of forcing width. Verified: bubble 304 px, thread `scrollWidth ===
+clientWidth === 390`, name truncates with an ellipsis.
+
+## CP-37 — picture bubbles looked uneven · FIXED
+
+**Reported:** "pictures sent and the bubble for them is not very neat (stretches as
+sender, the borders inconsistent)."
+
+**Two causes:**
+1. the image used `max-width: min(15rem, 100%)`. The percentage resolves against
+   an indefinite box during intrinsic sizing, so the bubble was sized from the
+   picture's *original* width (1600 px) and then capped: a **366 px bubble around
+   a 240 px picture** — 126 px of dead space, and the clock pill stretched to the
+   full picture height because the base rule's `top: 1px` survived
+   `position: absolute` (top + bottom on an auto-height box).
+2. media bubbles kept the text bubble's asymmetric padding (6 px top / 11 px
+   sides), so the frame around a picture was visibly uneven.
+
+**Fix:** length-only caps on the image (`max-width: 15rem`, `max-height: 22rem`,
+`height: auto`) so the bubble shrink-wraps the rendered picture; one uniform
+`--media-pad: 3px` frame with the picture's radius nested to match; `top: auto` on
+the overlaid clock pill; pictures narrower than their caption are centred.
+Verified: 240 px picture in a 246 px bubble (3 px frame each side), pill 70×14,
+no overflow at 390 or 1280.

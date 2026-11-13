@@ -563,6 +563,7 @@ button {
   align-items: flex-end;
   gap: var(--s-2);
   max-width: 100%;
+  min-width: 0;
 }
 
 .msg-row.theirs {
@@ -586,7 +587,11 @@ button {
    The far side stays rounded throughout. */
 .msg-bubble {
   position: relative;
-  max-width: var(--bubble-max);
+  /* never wider than the viewport allows: a long filename used to size the
+     bubble from its intrinsic text width and push a horizontal scroller into
+     the thread */
+  max-width: min(var(--bubble-max), 78vw);
+  min-width: 0;
   padding: var(--bubble-pad-y) var(--bubble-pad-x) calc(var(--bubble-pad-y) + 1px);
   border-radius: var(--r-bubble);
   font-size: var(--fs-15);
@@ -676,16 +681,65 @@ button {
   white-space: pre-wrap;
 }
 
+/* pictures: length-only caps so the bubble shrink-wraps the RENDERED image
+   (a percentage cap resolves against an indefinite box during intrinsic
+   sizing, which is what produced a 366px bubble around a 240px picture) */
 .msg-content img {
   display: block;
-  max-width: min(15rem, 100%);
-  border-radius: calc(var(--r-bubble) - 0.25rem);
+  width: auto;
+  height: auto;
+  max-width: 15rem;
+  max-height: 22rem;
+  border-radius: calc(var(--r-bubble) - var(--media-pad));
   cursor: zoom-in;
+  background: var(--bg-press);
+}
+
+/* a media bubble has ONE frame width, so the picture sits centred inside it */
+.msg-bubble:has(> .msg-content > img) {
+  --media-pad: 0.1875rem;
+  padding: var(--media-pad);
+}
+
+.msg-bubble:has(> .msg-content > img) .msg-content {
+  line-height: 0;
 }
 
 .msg-caption {
   margin-top: var(--s-1);
   font-size: var(--fs-14);
+  line-height: var(--lh-normal);
+}
+
+/* captions sit on the frame, the picture keeps its own corners */
+.msg-bubble:has(> .msg-content > .msg-caption) {
+  padding-bottom: 0.3rem;
+}
+
+.msg-bubble:has(> .msg-content > .msg-caption) .msg-caption {
+  padding: 0 0.3125rem;
+}
+
+/* a picture narrower than its caption sits centred, not stranded left */
+.msg-bubble:has(> .msg-content > .msg-caption) .msg-content img {
+  margin: 0 auto;
+}
+
+/* the clock rides on the picture instead of forcing a taller frame */
+.msg-bubble:has(> .msg-content > img):not(:has(.msg-caption)) .msg-meta {
+  position: absolute;
+  /* top must be reset: the base rule sets `top: 1px`, and top+bottom on an
+     auto-height absolute box stretches it to the full height of the picture */
+  top: auto;
+  right: 0.4375rem;
+  bottom: 0.4375rem;
+  float: none;
+  margin: 0;
+  padding: 0.1rem 0.375rem;
+  border-radius: var(--r-pill);
+  background: rgba(4, 8, 16, 0.55);
+  color: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(2px);
 }
 
 /* meta sits low in the corner, inside the bubble */
@@ -763,7 +817,7 @@ button {
   display: flex;
   align-items: center;
   gap: var(--s-2);
-  min-width: 11rem;
+  min-width: 0;
   padding: var(--s-1) 0;
 }
 
@@ -789,6 +843,7 @@ button {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  max-width: 100%;
 }
 
 .file-size {
