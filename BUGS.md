@@ -36,7 +36,7 @@
 | CP-24 | **Profile card was invisible.** `.modal-overlay` starts at `opacity: 0` and only becomes visible with `.show`; the profile built its own overlay and never added it, so clicking a name underlined it and drew nothing. The card was in the DOM the whole time — which is exactly what the first verification checked, so it passed locally and shipped broken. Now rendered through the shared `openModal()` helper, and the check asserts real visibility (overlay opacity, box size, hit-test at the card's centre) instead of DOM presence | 🔺 serious | UI | ✅ verified | profiles round |
 | CP-25 | **Profile picture looked missing.** The blob loaded fine, but the avatar element already carried an inline `background` shorthand (the initials gradient) which pins `background-size: auto` — and inline beats any class rule. Setting only `background-image` afterwards drew a 512 px photo at 1:1 anchored top-left inside a 36–84 px circle, so it read as "no picture". Now the whole shorthand is replaced (`url(...) center / cover no-repeat`); the check asserts computed `background-size` is `cover` and a screenshot of the real file is inspected | 🔸 minor | UI | ✅ verified | profiles round |
 
-**25/25 closed.** The next CP number to use: **CP-32**.
+**28/31 closed** (CP-26, CP-28, CP-29 open). The next CP number to use: **CP-32**.
 
 ### Reported by the user (Nov 2026, phone note — transcribed in
 `chatpulse-stuff/notes/user-bug-list-01.md`)
@@ -44,11 +44,15 @@
 | ID | Issue | Severity | Type | Status | Area |
 |----|-------|----------|------|--------|------|
 | CP-26 | Emoji set incomplete — picker ships a small curated set, not the full Unicode set | 🔸 minor | bug | 🔴 open | composer / emoji |
-| CP-27 | Admin panel's DB size does not report the same thing as the backup size (`.db` file vs VACUUM'd snapshot vs WAL) | 🔸 minor | bug | 🔴 open | admin panel / backups |
+| CP-27 | Admin panel's DB size does not report the same thing as the backup size (`.db` file vs VACUUM'd snapshot vs WAL) | 🔸 minor | bug | ✅ verified | admin panel / backups |
 | CP-28 | "Feels a bit slow already" — sync better-sqlite3 on one thread, no cache layer (see ROADMAP async DB item) | ⚠️ major | perf | 🔴 open | server |
 | CP-29 | Group chat header UX — header is a name + count, not a place; needs a group info screen | ⚠️ major | ux | 🔴 open | group header |
-| CP-30 | Profile pictures don't update for other clients until a full reload | ⚠️ major | bug | 🔴 open | profile / realtime |
-| CP-31 | Captcha sometimes cannot be solved (unreadable render? 5-min expiry? strict answer match?) | ⚠️ major | bug | 🔴 open | auth / captcha |
+| CP-30 | Profile pictures don't update for other clients until a full reload | ⚠️ major | bug | ✅ verified | profile / realtime |
+| CP-31 | Captcha sometimes cannot be solved (unreadable render? 5-min expiry? strict answer match?) | ⚠️ major | bug | ✅ verified | auth / captcha |
+
+**CP-27** `b5be80c`: stats now separate in-use / on-disk (incl. WAL) / archive sizes.
+**CP-30** `a34c610`: the broadcast was fine — `store.setUser` dropped `avatarUrl` and the sidebar's render key ignored name/avatar, so rows never repainted. Two-session test, 10/10.
+**CP-31** `5699211`: three separate causes — Persian/Arabic digits failed an exact-match (`۰-۹`/`٠-٩` now folded), glyph jitter made some questions unreadable (±16° → ±9°, darker ink), and at card width the answer input collapsed to ~60 px with the ↻ button clipped (captcha block now stacks). Still open in spirit: nobody has confirmed your friend's *specific* failure on their device.
 
 ## Open issues
 

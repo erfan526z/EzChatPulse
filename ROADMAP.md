@@ -30,7 +30,7 @@
 | 6 | Channels + bots | broadcast channels; bot API | 💤 |
 | 7 | Android app | separate project; cheapest first step = PWA wrapper around the existing web client | 💤 |
 | 8 | Group description | new `chats.description` column, editable by owner/mods, shown on the group info screen — pairs with CP-29 | 🟡 |
-| 9 | APNG for thumbnails + avatars | sharp flattens APNG to a still PNG, so an animated avatar silently loses its animation. Detect the `acTL` chunk and treat APNG like GIF: skip thumbnailing, serve the original | 🟡 |
+| 9 | APNG for thumbnails + avatars | ✅ **DONE** — migration v9 (`files.animated`), `acTL` detection at upload (never after IDAT), no thumbUrl, `?thumb=1` returns the original bytes; tested with a hand-built chunk-valid APNG | ✅ shipped |
 | 10 | In-app GIF + video player | lightbox playback for gif/mp4/webm (`/api/files/:id` already streams), play/pause, autoplay rules | 🟡 |
 | 11 | Async DB access + cache layer | move SQLite off the request thread and add in-memory caches (user DTOs, membership, unread) with explicit invalidation — the structural fix behind CP-28 | 🟡 |
 
