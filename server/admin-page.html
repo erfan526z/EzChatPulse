@@ -113,7 +113,7 @@
       <span style="flex:1"></span>
     </div>
     <table>
-      <thead><tr><th>Backup</th><th>Size</th><th>Created</th><th></th></tr></thead>
+      <thead><tr><th>Backup</th><th>Archive</th><th>Created</th><th></th></tr></thead>
       <tbody id="backup-rows"></tbody>
     </table>
 
@@ -184,7 +184,8 @@
       ['Messages', stats.messages],
       ['Files', stats.files],
       ['Deleted (retained)', stats.deletedMessages],
-      ['DB size', fmtBytes(stats.dbSizeBytes)],
+      ['DB in use', fmtBytes(stats.dbLogicalBytes ?? stats.dbSizeBytes)],
+      ['DB on disk', stats.dbWalBytes ? `${fmtBytes(stats.dbSizeBytes)} · WAL ${fmtBytes(stats.dbWalBytes)}` : fmtBytes(stats.dbSizeBytes)],
       ['Uptime', stats.uptimeSec + 's'],
       ['Live conns', stats.connections],
       ['Captcha fails', stats.captcha ? stats.captcha.failures : 0],

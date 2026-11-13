@@ -69,7 +69,15 @@ test('admin stats report counts, uptime, and registration state', async () => {
   assert.ok(stats.uptimeSec > 0, 'uptime must be positive');
   assert.equal(stats.connections, 1, 'the admin ws connection counts');
   assert.equal(stats.registrationOpen, true, 'registration open by default');
-  assert.ok(typeof stats.dbSizeBytes === 'number');
+  // CP-27: three distinct quantities, each labelled — not one ambiguous "DB size"
+  assert.ok(typeof stats.dbSizeBytes === 'number', 'on-disk bytes reported');
+  assert.ok(typeof stats.dbLogicalBytes === 'number', 'logical bytes reported');
+  assert.ok(stats.dbLogicalBytes > 0, 'a real file-backed db has a page count');
+  assert.ok(typeof stats.dbWalBytes === 'number', 'wal bytes reported');
+  assert.ok(
+    stats.dbSizeBytes >= stats.dbWalBytes,
+    'on-disk total must include the WAL, not ignore it',
+  );
   ws.close();
 });
 

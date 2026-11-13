@@ -41,12 +41,28 @@ router.get(
     const deletedMessages = (db
       .prepare('SELECT COUNT(*) AS n FROM messages WHERE deleted_at IS NOT NULL')
       .get() as { n: number }).n;
-    let dbSizeBytes = 0;
+    // Three different quantities used to be conflated in one "DB size" number:
+    // what SQLite thinks it uses, what the files occupy on disk (incl. -wal),
+    // and what a backup archive weighs. Report each one.
+    let dbSizeBytes = 0; // on disk: .db + -wal + -shm
+    let dbLogicalBytes = 0; // page_count * page_size
+    let dbWalBytes = 0;
     if (config.dbPath !== ':memory:') {
       try {
-        dbSizeBytes = fs.statSync(config.dbPath).size;
+        const pageCount = db.pragma('page_count', { simple: true }) as number;
+        const pageSize = db.pragma('page_size', { simple: true }) as number;
+        dbLogicalBytes = pageCount * pageSize;
       } catch {
-        dbSizeBytes = 0;
+        dbLogicalBytes = 0;
+      }
+      for (const suffix of ['', '-wal', '-shm']) {
+        try {
+          const bytes = fs.statSync(config.dbPath + suffix).size;
+          dbSizeBytes += bytes;
+          if (suffix === '-wal') dbWalBytes = bytes;
+        } catch {
+          // the file may not exist (no WAL yet, or already checkpointed)
+        }
       }
     }
     const emailVerified = (db
@@ -62,6 +78,8 @@ router.get(
       files: count('files'),
       deletedMessages,
       dbSizeBytes,
+      dbLogicalBytes,
+      dbWalBytes,
       uptimeSec: Math.round(process.uptime()),
       connections: totalConnections(),
       registrationOpen: getSetting(db, 'registration_open', process.env.REGISTRATION_OPEN ?? 'true') === 'true',
