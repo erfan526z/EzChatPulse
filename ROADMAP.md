@@ -22,13 +22,19 @@
 
 | # | Feature | Notes | Status |
 |---|---------|-------|--------|
-| 1 | UI major overhaul | the interface reads as generic/AI-template: gradient-everywhere, glass blur, purple accents, emoji-as-icons, default type scale. Wanted: a real design identity — deliberate type scale + spacing system, one signature accent (not gradients on everything), consistent icon set, purposeful motion, better empty states, light/dark with real contrast tuning | 🔜 |
+| 1 | UI major overhaul | Phone-first, one design system for phone + desktop (two columns above a threshold, exactly like a tablet). Rules agreed from the sketch: **proportional sizing** (rem driven by the root scale, never device pixels); **bubbles** round → tight → tight → tail across a run, tail set slightly to the side, time inside the bubble sitting low, tighter vertical padding; **accent chosen by the user** as either a colour or a gradient (persisted per account); profile actions Message · Share · Mute with block moved into the ⋮ menu; burger opens a drawer (profile header, new group, appearance, settings, blocked, log out); labels under values on the profile | 🔜 in design, lab at `chatpulse-stuff/ui-lab/` |
 | 2 | Message search (FTS) | server-side full-text search over messages (SQLite FTS5); sidebar search also covers message content | 🟡 |
 | 3 | GIF support "like Telegram" | GIF **search** needs a provider decision (Tenor/Giphy API key) + quick-send UI; sending GIFs as files already works | 🟡 needs decision |
 | 4 | Per-user storage quota + file management | per-user space (upload cap exists), admin-editable quota, add/remove/replace files, distinct shared-file bubble, per-file public/private flag | 🟡 |
 | 5 | Notifications (Web Push) | service worker + VAPID push for new messages when the tab is closed | 🟡 |
 | 6 | Channels + bots | broadcast channels; bot API | 💤 |
-| 7 | Android app | separate project; cheapest first step = PWA wrapper around the existing web client | 💤 |## Parked / concerns
+| 7 | Android app | separate project; cheapest first step = PWA wrapper around the existing web client | 💤 |
+| 8 | Group description | new `chats.description` column, editable by owner/mods, shown on the group info screen — pairs with CP-29 | 🟡 |
+| 9 | APNG for thumbnails + avatars | sharp flattens APNG to a still PNG, so an animated avatar silently loses its animation. Detect the `acTL` chunk and treat APNG like GIF: skip thumbnailing, serve the original | 🟡 |
+| 10 | In-app GIF + video player | lightbox playback for gif/mp4/webm (`/api/files/:id` already streams), play/pause, autoplay rules | 🟡 |
+| 11 | Async DB access + cache layer | move SQLite off the request thread and add in-memory caches (user DTOs, membership, unread) with explicit invalidation — the structural fix behind CP-28 | 🟡 |
+
+## Parked / concerns
 
 | Item | Note |
 |------|------|
