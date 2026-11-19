@@ -36,16 +36,16 @@
 | CP-24 | **Profile card was invisible.** `.modal-overlay` starts at `opacity: 0` and only becomes visible with `.show`; the profile built its own overlay and never added it, so clicking a name underlined it and drew nothing. The card was in the DOM the whole time — which is exactly what the first verification checked, so it passed locally and shipped broken. Now rendered through the shared `openModal()` helper, and the check asserts real visibility (overlay opacity, box size, hit-test at the card's centre) instead of DOM presence | 🔺 serious | UI | ✅ verified | profiles round |
 | CP-25 | **Profile picture looked missing.** The blob loaded fine, but the avatar element already carried an inline `background` shorthand (the initials gradient) which pins `background-size: auto` — and inline beats any class rule. Setting only `background-image` afterwards drew a 512 px photo at 1:1 anchored top-left inside a 36–84 px circle, so it read as "no picture". Now the whole shorthand is replaced (`url(...) center / cover no-repeat`); the check asserts computed `background-size` is `cover` and a screenshot of the real file is inspected | 🔸 minor | UI | ✅ verified | profiles round |
 
-**29/31 closed** (CP-26, CP-28 open). The next CP number to use: **CP-38**.
+**31/31 closed** — CP-26 and CP-28 closed 2026-11-19. The next CP number to use: **CP-38**.
 
 ### Reported by the user (Nov 2026, phone note — transcribed in
 `chatpulse-stuff/notes/user-bug-list-01.md`)
 
 | ID | Issue | Severity | Type | Status | Area |
 |----|-------|----------|------|--------|------|
-| CP-26 | Emoji set incomplete — picker ships a small curated set, not the full Unicode set | 🔸 minor | bug | 🔴 open | composer / emoji |
+| CP-26 | Emoji set incomplete — picker ships a small curated set, not the full Unicode set | 🔸 minor | bug | ✅ fixed | composer / emoji |
 | CP-27 | Admin panel's DB size does not report the same thing as the backup size (`.db` file vs VACUUM'd snapshot vs WAL) | 🔸 minor | bug | ✅ verified | admin panel / backups |
-| CP-28 | "Feels a bit slow already" — sync better-sqlite3 on one thread, no cache layer (see ROADMAP async DB item) | ⚠️ major | perf | 🔴 open | server |
+| CP-28 | "Feels a bit slow already" — sync better-sqlite3 on one thread, no cache layer (see ROADMAP async DB item) | ⚠️ major | perf | ✅ fixed | server |
 | CP-29 | Group chat header UX — header is a name + count, not a place; needs a group info screen | ⚠️ major | ux | ✅ fixed | group header |
 | CP-30 | Profile pictures don't update for other clients until a full reload | ⚠️ major | bug | ✅ verified | profile / realtime |
 | CP-31 | Captcha sometimes cannot be solved (unreadable render? 5-min expiry? strict answer match?) | ⚠️ major | bug | ✅ verified | auth / captcha |
@@ -217,3 +217,56 @@ round-trip to the server, add-member panel), 132/132 tests.
 - migrations **11** (description) and **12** (activity index) applied; data intact
   (16 users · 22 chats · 392 messages, counts only)
 - bundles `index-Dc_5NFhO.js` / `index-JSBhGOON.css`; no JS errors at 390 or 1280
+
+## CP-38 — hardware back left the app instead of closing the conversation · FIXED
+
+**Reported by a user:** on a phone, pressing back inside a conversation exited the
+app. Nothing in the client touched history, so the browser had nowhere to go but out.
+
+**Fixed:** `web/src/ui/back-stack.ts` — each full-screen layer pushes one history
+entry and closes itself on `popstate`, so back walks conversation → list → out of
+the app. Layers: the phone conversation, the drawer, settings, group info, and
+every modal (one choke point in `openModal`). In-app closes (chevron, scrim,
+Escape) drop their own entry instead of stacking up, and a layer that closed
+itself is skipped when the next pop arrives. Desktop is unchanged: both columns
+are visible, so opening a chat is not a navigation there.
+
+Locked by 9 browser checks (conversation, drawer, settings, modal-over-conversation, ordering).
+
+## CP-26 — the emoji set was too small · FIXED
+
+367 glyphs in 8 categories, no recents. Now **1,033 glyphs in 10 categories**
+(Travel and Flags added, existing categories topped up) plus a **Recently used**
+tab persisted in `localStorage` (last 24, deduplicated). 5 browser checks.
+
+## CP-28 — "feels slow" · FIXED (measured)
+
+Three query-level causes were fixed in the previous round (activity index,
+batched list loading, join cursors): chat list 34.4 ms → 6.5 ms at 100 chats.
+
+The remaining cost was the payload, not the query: **194 KB of uncompressed JSON**
+per list load. Every static asset was already brotli'd but the API went out raw.
+`gzipJson` now compresses JSON over 1 KB when the client asks:
+
+```
+chat list      194.4 KB → 12.6 KB
+message page    13.1 KB →  0.9 KB
+/api/me          0.2 KB → uncompressed (< threshold, deliberately)
+```
+
+Latency unchanged (~7 ms p50). Two tests pin the wire behaviour — worth knowing
+that `fetch()` cannot see it, since undici decodes gzip and drops the header;
+the tests use a raw socket.
+
+### Deployed 2026-11-19 15:19 — and nginx is off
+
+- snapshot `/opt/chatpulse-rollback-20261119-1518.tgz` · DB `pre-deploy-20261119-1518.sqlite`
+- **nginx stopped and disabled** (it had no vhosts and owned no socket; the CVE
+  investigation showed it was unused)
+- **:80 → :443 redirect** moved into the app itself: `HTTP_PORT=80` via
+  `/etc/systemd/system/chatpulse.service.d/http-redirect.conf`, serves
+  `301 https://<host><path>?<query>` (path and query preserved, host port
+  stripped, `cache-control: max-age=300`). Node binds both 80 and 443 under
+  `CAP_NET_BIND_SERVICE`, so no privilege change was needed.
+- live bundles `index-DWN3-LOr.js` / `index-CKInr2FT.css`; migration 12; data
+  intact (16 users · 22 chats · 392 messages, counts only)
