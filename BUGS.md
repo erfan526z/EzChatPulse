@@ -270,3 +270,29 @@ the tests use a raw socket.
   `CAP_NET_BIND_SERVICE`, so no privilege change was needed.
 - live bundles `index-DWN3-LOr.js` / `index-CKInr2FT.css`; migration 12; data
   intact (16 users · 22 chats · 392 messages, counts only)
+
+## Email verification enforced — 2026-11-19 15:4x
+
+**State before:** the feature was complete but the policy switch
+(`require_verified_email`) was `false`. Production: 16 users, 6 with an address,
+5 verified, **10 with no address at all**. Turning it on as-is would have
+silenced 11 of 16 with no path back.
+
+**What was done**
+
+1. migration **v13** — `users.verification_exempt` (default 0), with every
+   account that existed at the switch marked exempt. `sendingBlockedByVerification`
+   returns false for exempt accounts; new accounts never get the flag.
+2. Registration requires a usable address while the policy is on
+   (`400 { emailRequired: true }`); stays optional when it is off.
+3. `GET /api/registration-policy` (public, policy only) so the signup form labels
+   the email field "required" instead of failing after submit.
+4. Policy flipped to `true` after deploy and verified live:
+   `/api/registration-policy` → `{"open":true,"emailRequired":true}`,
+   signup without an address → 400, 16/16 accounts grandfathered.
+
+**Not verified:** a live send. The Resend key authenticates (its 401 on
+`/domains` is the documented send-only scope) and 5 of the 6 accounts with an
+address were verified in the past, but no message was sent during this deploy.
+If a send fails for a new signup, the recovery path is the composer banner
+("Resend verification") plus `POST /api/admin/users/:id/verify-email`.
