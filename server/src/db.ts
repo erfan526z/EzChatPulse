@@ -107,6 +107,17 @@ const migrations: Array<{ version: number; up: (db: Db) => void }> = [
     },
   },
   {
+    // v12 — the chat list asks for MAX(created_at) per chat, which had no index
+    // to seek and therefore scanned every message of every chat (16ms at 100
+    // chats / 50k messages). Partial index matches the queries' own filter.
+    version: 12,
+    up(db) {
+      db.exec(
+        'CREATE INDEX IF NOT EXISTS idx_messages_chat_created ON messages(chat_id, created_at) WHERE deleted_at IS NULL',
+      );
+    },
+  },
+  {
     // v11 — group description, shown on the group info page
     version: 11,
     up(db) {

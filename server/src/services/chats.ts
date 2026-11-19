@@ -2,7 +2,7 @@ import type { Db } from '../db.js';
 import { BadRequest, Conflict, Forbidden, NotFound } from '../errors.js';
 import { isOnline } from '../ws/hub.js';
 import { isMember } from './membership.js';
-import { getMessage, type MessageDTO } from './messages.js';
+import { getMessage, isHiddenFor, messageRowToDTO, type MessageDTO, type MessageRow } from './messages.js';
 import { avatarUrlOf } from '../auth.js';
 
 export interface MemberInfo {
@@ -73,6 +73,8 @@ export function findOrCreatePrivate(db: Db, userId: number, otherId: number): nu
     const ins = db.prepare('INSERT INTO chat_members (chat_id, user_id, role, joined_at) VALUES (?, ?, ?, ?)');
     ins.run(chatId, a, 'member', now);
     ins.run(chatId, b, 'member', now);
+    seedReadCursor(db, chatId, a);
+    seedReadCursor(db, chatId, b);
     return chatId;
   })();
 }
@@ -101,6 +103,8 @@ export function createGroup(db: Db, creatorId: number, name: string, userIds: nu
     const ins = db.prepare('INSERT INTO chat_members (chat_id, user_id, role, joined_at) VALUES (?, ?, ?, ?)');
     ins.run(chatId, creatorId, 'admin', now);
     for (const id of others) ins.run(chatId, id, 'member', now);
+    seedReadCursor(db, chatId, creatorId);
+    for (const id of others) seedReadCursor(db, chatId, id);
     return chatId;
   })();
 }
@@ -119,6 +123,7 @@ export function addMember(db: Db, actorId: number, chatId: number, newUserId: nu
     'member',
     Date.now(),
   );
+  seedReadCursor(db, chatId, newUserId);
 }
 
 export function removeMember(db: Db, actorId: number, chatId: number, targetUserId: number): void {
@@ -260,6 +265,111 @@ export function chatSummary(db: Db, chatId: number): ChatSummary {
 }
 
 /** All chats the user belongs to, newest activity first, with unread + last message. */
+
+/** Members for many chats in one query, grouped by chat id. */
+function membersByChat(db: Db, chatIds: number[]): Map<number, MemberInfo[]> {
+  const out = new Map<number, MemberInfo[]>();
+  if (!chatIds.length) return out;
+  const holes = chatIds.map(() => '?').join(',');
+  const rows = db
+    .prepare(
+      `SELECT cm.chat_id, u.id, u.username, u.display_name, u.last_seen_at, u.avatar_file_id, cm.role
+       FROM chat_members cm
+       JOIN users u ON u.id = cm.user_id
+       WHERE cm.chat_id IN (${holes})
+       ORDER BY cm.chat_id, cm.joined_at`,
+    )
+    .all(...chatIds) as Array<{
+    chat_id: number;
+    id: number;
+    username: string;
+    display_name: string;
+    last_seen_at: number | null;
+    avatar_file_id: number | null;
+    role: string;
+  }>;
+  for (const r of rows) {
+    const list = out.get(r.chat_id) ?? [];
+    list.push({
+      userId: r.id,
+      username: r.username,
+      displayName: r.display_name,
+      role: r.role as 'member' | 'admin',
+      online: isOnline(r.id),
+      lastSeenAt: r.last_seen_at,
+      avatarUrl: avatarUrlOf(r.avatar_file_id),
+    });
+    out.set(r.chat_id, list);
+  }
+  return out;
+}
+
+/** Read cursors for many chats in one query, grouped by chat id. */
+function readStateByChat(db: Db, chatIds: number[]): Map<number, { userId: number; msgId: number }[]> {
+  const out = new Map<number, { userId: number; msgId: number }[]>();
+  if (!chatIds.length) return out;
+  const holes = chatIds.map(() => '?').join(',');
+  const rows = db
+    .prepare(
+      `SELECT chat_id, user_id, last_read_message_id FROM read_state
+       WHERE chat_id IN (${holes}) AND last_read_message_id > 0`,
+    )
+    .all(...chatIds) as Array<{ chat_id: number; user_id: number; last_read_message_id: number }>;
+  for (const r of rows) {
+    const list = out.get(r.chat_id) ?? [];
+    list.push({ userId: r.user_id, msgId: r.last_read_message_id });
+    out.set(r.chat_id, list);
+  }
+  return out;
+}
+
+/** Last messages for many chats in one query, keyed by message id. */
+function messagesByIds(db: Db, ids: number[], viewerId: number): Map<number, MessageDTO> {
+  const out = new Map<number, MessageDTO>();
+  if (!ids.length) return out;
+  const holes = ids.map(() => '?').join(',');
+  const rows = db
+    .prepare(
+      `SELECT m.id, m.chat_id, m.sender_id, m.kind, m.text, m.reply_to, m.created_at,
+              m.edited_at, m.deleted_at,
+              f.id AS f_id, f.name AS f_name, f.mime AS f_mime, f.size AS f_size
+       FROM messages m
+       LEFT JOIN files f ON f.id = m.file_id
+       WHERE m.id IN (${holes})`,
+    )
+    .all(...ids) as MessageRow[];
+  // a message the viewer deleted for themselves must not reappear as a preview
+  const hidden = new Set(
+    (
+      db
+        .prepare(`SELECT message_id FROM message_hidden WHERE user_id = ? AND message_id IN (${holes})`)
+        .all(viewerId, ...ids) as Array<{ message_id: number }>
+    ).map((r) => r.message_id),
+  );
+  for (const row of rows) {
+    if (hidden.has(row.id)) continue;
+    out.set(row.id, messageRowToDTO(row));
+  }
+  return out;
+}
+
+
+/**
+ * A new member starts reading from the newest message, not from message 1.
+ * Without this the whole history counts as unread — wrong for the user, and the
+ * chat list pays for it (the unread COUNT walks every message of that chat).
+ */
+function seedReadCursor(db: Db, chatId: number, userId: number): void {
+  const latest = db
+    .prepare('SELECT COALESCE(MAX(id), 0) AS id FROM messages WHERE chat_id = ? AND deleted_at IS NULL')
+    .get(chatId) as { id: number };
+  db.prepare(
+    `INSERT INTO read_state (chat_id, user_id, last_read_message_id, updated_at)
+     VALUES (?, ?, ?, ?)
+     ON CONFLICT(chat_id, user_id) DO NOTHING`,
+  ).run(chatId, userId, latest.id, Date.now());
+}
+
 export function listChats(db: Db, userId: number): ChatDTO[] {
   const rows = db
     .prepare(
@@ -284,6 +394,13 @@ export function listChats(db: Db, userId: number): ChatDTO[] {
     unread: number;
   }>;
 
+  // one query each, instead of three per chat (300 queries at 100 chats)
+  const chatIds = rows.map((r) => r.id);
+  const members = membersByChat(db, chatIds);
+  const cursors = readStateByChat(db, chatIds);
+  const lastIds = rows.map((r) => r.last_msg_id).filter((id): id is number => typeof id === 'number');
+  const lastMessages = messagesByIds(db, lastIds, userId);
+
   return rows.map((r) => ({
     id: r.id,
     type: r.type as 'private' | 'group',
@@ -291,8 +408,8 @@ export function listChats(db: Db, userId: number): ChatDTO[] {
     description: r.description ?? null,
     createdAt: r.created_at,
     unread: r.unread,
-    lastMessage: r.last_msg_id ? getMessage(db, r.last_msg_id, userId) : null,
-    members: listMembers(db, r.id),
-    readBy: listReadState(db, r.id),
+    lastMessage: r.last_msg_id ? lastMessages.get(r.last_msg_id) ?? null : null,
+    members: members.get(r.id) ?? [],
+    readBy: cursors.get(r.id) ?? [],
   }));
 }

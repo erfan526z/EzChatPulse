@@ -18,7 +18,7 @@ export interface MessageDTO {
   deletedAt: number | null;
 }
 
-interface MessageRow {
+export interface MessageRow {
   id: number;
   chat_id: number;
   sender_id: number;
@@ -42,7 +42,7 @@ const MESSAGE_SELECT = `
   LEFT JOIN files f ON f.id = m.file_id
 `;
 
-function rowToDTO(row: MessageRow): MessageDTO {
+export function messageRowToDTO(row: MessageRow): MessageDTO {
   return {
     id: row.id,
     chatId: row.chat_id,
@@ -60,7 +60,7 @@ function rowToDTO(row: MessageRow): MessageDTO {
 }
 
 /** Is the message hidden for this viewer (delete-for-me)? */
-function isHiddenFor(db: Db, msgId: number, viewerId: number): boolean {
+export function isHiddenFor(db: Db, msgId: number, viewerId: number): boolean {
   return !!db.prepare('SELECT 1 FROM message_hidden WHERE message_id = ? AND user_id = ?').get(msgId, viewerId);
 }
 
@@ -68,7 +68,7 @@ export function getMessage(db: Db, id: number, viewerId?: number): MessageDTO | 
   const row = db.prepare(`${MESSAGE_SELECT} WHERE m.id = ?`).get(id) as MessageRow | undefined;
   if (!row) return null;
   if (viewerId !== undefined && isHiddenFor(db, id, viewerId)) return null;
-  return rowToDTO(row);
+  return messageRowToDTO(row);
 }
 
 export interface SendInput {
@@ -140,7 +140,7 @@ export function listMessages(db: Db, viewerId: number, chatId: number, before?: 
        ORDER BY m.id DESC LIMIT ?`,
     )
     .all(chatId, before ?? null, before ?? null, viewerId, capped) as MessageRow[];
-  return rows.map(rowToDTO);
+  return rows.map(messageRowToDTO);
 }
 
 /** Load a message and verify it belongs to the chat (throws NotFound otherwise). */

@@ -4,6 +4,7 @@ import {
   createTestContext,
   destroyTestContext,
   registerUser,
+  seedMessages,
   wsConnectAuthed,
   waitForMessage,
   type TestContext,
@@ -302,4 +303,42 @@ test('delete group: admin only; members get chat.deleted; cascade wipes messages
   wsA.close();
   wsB.close();
   wsC.close();
+});
+
+test('a member who joins a busy group starts with zero unread', async () => {
+  // the cursor is seeded at join time; without it the whole history counts as
+  // unread for the new member (and the chat list has to count every message)
+  const alice = await registerUser(ctx, 'alice', 'Alice', 'password123');
+  const bob = await registerUser(ctx, 'bob', 'Bob', 'password123');
+  const carol = await registerUser(ctx, 'carol', 'Carol', 'password123');
+  const base = `http://127.0.0.1:${ctx.port}`;
+  const auth = (t: string) => ({ authorization: `Bearer ${t}`, 'content-type': 'application/json' });
+
+  const created = await fetch(`${base}/api/chats`, {
+    method: 'POST',
+    headers: auth(alice.token),
+    body: JSON.stringify({ type: 'group', name: 'Busy', userIds: [] }),
+  });
+  const { chatId } = await created.json();
+  seedMessages(ctx.db, chatId, carol.user.id, 25, 'history');
+
+  const added = await fetch(`${base}/api/chats/${chatId}/members`, {
+    method: 'POST',
+    headers: auth(alice.token),
+    body: JSON.stringify({ userId: bob.user.id }),
+  });
+  assert.equal(added.status, 200);
+
+  const bobChats = await (await fetch(`${base}/api/chats`, { headers: auth(bob.token) })).json();
+  const row = bobChats.chats.find((c: { id: number }) => c.id === chatId);
+  assert.ok(row, 'bob should see the chat');
+  assert.equal(row.unread, 0, 'joining must not import the history as unread');
+
+  // the preview still shows the newest message
+  assert.equal(row.lastMessage?.text, 'history 25');
+
+  // and the creator, who has not read them either, does see them as unread
+  const aliceChats = await (await fetch(`${base}/api/chats`, { headers: auth(alice.token) })).json();
+  const aliceRow = aliceChats.chats.find((c: { id: number }) => c.id === chatId);
+  assert.ok((aliceRow.unread ?? 0) >= 25, `alice should see the backlog, got ${aliceRow.unread}`);
 });
