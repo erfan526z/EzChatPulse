@@ -4,6 +4,7 @@ import { socket } from '../ws';
 import { loadMore } from '../actions';
 import { avatarEl, formatClock, formatLastSeen, formatBytes, isImageMime } from './format';
 import { openProfile } from './profile';
+import { openChatInfo } from './chat-info';
 import { openModal, toast, confirmDialog } from './toast';
 import { mountEmojiPanel } from './emoji-panel';
 import type { UIChat, UIMessage, MemberInfo } from '../types';
@@ -49,7 +50,6 @@ export function mountChatPane(): void {
     const peer = chat.type === 'private' ? chat.members.find((m) => m.userId !== store.state.session?.user.id) : undefined;
     const avatar = avatarEl(peer?.userId ?? chat.id, store.chatTitle(chat), 40, peer?.avatarUrl);
     if (chat.type === 'group') avatar.classList.add('group-avatar');
-    headerEl.appendChild(avatar);
 
     const info = document.createElement('div');
     info.className = 'chat-header-info';
@@ -61,21 +61,16 @@ export function mountChatPane(): void {
     sub.id = 'chat-header-sub';
     sub.textContent = subtitle(chat);
     info.append(name, sub);
-    if (chat.type === 'private' && peer) {
-      // tap the header → that person's profile (picture, bio, common groups)
-      info.classList.add('clickable');
-      info.addEventListener('click', () => void openProfile(peer.userId));
-    }
-    headerEl.appendChild(info);
 
-    if (chat.type === 'group') {
-      const btn = document.createElement('button');
-      btn.className = 'icon-btn';
-      btn.title = 'Members';
-      btn.textContent = '👥';
-      btn.addEventListener('click', () => openMembersModal(chat));
-      headerEl.appendChild(btn);
-    }
+    // the whole identity block — picture, name, presence — is the affordance:
+    // private chats open the person card, groups open the group info page
+    const main = document.createElement('button');
+    main.type = 'button';
+    main.className = 'chat-header-main';
+    main.title = chat.type === 'group' ? 'Group info' : 'Profile';
+    main.append(avatar, info);
+    main.addEventListener('click', () => openChatInfo(chat));
+    headerEl.appendChild(main);
   }
 
   function updateHeaderSub(chat: UIChat): void {
@@ -890,160 +885,6 @@ export function mountChatPane(): void {
 }
 
 // ── members modal ───────────────────────────────────────────────────────
-function openMembersModal(chat: UIChat): void {
-  const me = store.state.session?.user.id;
-  const amAdmin = chat.members.find((m) => m.userId === me)?.role === 'admin';
-  const root = document.createElement('div');
-  root.className = 'members-modal';
-  root.innerHTML = `
-    <h2>${chat.name ?? 'Group'}</h2>
-    <div id="mm-list"></div>
-    <div id="mm-add" class="hidden">
-      <input id="mm-q" type="text" placeholder="Search users…" maxlength="32" />
-      <div id="mm-results"></div>
-    </div>
-    <button id="mm-toggle">＋ Add member</button>
-    <div id="mm-footer">
-      <button id="mm-leave">Leave group</button>
-      ${amAdmin ? '<button id="mm-delete" class="mm-delete">Delete group</button>' : ''}
-    </div>
-  `;
-
-  const listEl = root.querySelector<HTMLDivElement>('#mm-list')!;
-  const addEl = root.querySelector<HTMLDivElement>('#mm-add')!;
-  const toggleBtn = root.querySelector<HTMLButtonElement>('#mm-toggle')!;
-  const qInput = root.querySelector<HTMLInputElement>('#mm-q')!;
-  const resultsEl = root.querySelector<HTMLDivElement>('#mm-results')!;
-
-  function renderList(members: MemberInfo[]): void {
-    listEl.innerHTML = '';
-    for (const member of members) {
-      const row = document.createElement('div');
-      row.className = 'mm-row';
-      const memberAvatar = avatarEl(member.userId, member.displayName, 32, member.avatarUrl);
-      row.appendChild(memberAvatar);
-      row.classList.add('clickable');
-      row.addEventListener('click', () => void openProfile(member.userId));
-      const info = document.createElement('div');
-      info.className = 'mm-info';
-      const name = document.createElement('div');
-      name.className = 'mm-name';
-      name.textContent = member.displayName + (member.userId === me ? ' (you)' : '');
-      const sub = document.createElement('div');
-      sub.className = 'mm-sub';
-      sub.textContent = member.online ? 'online' : formatLastSeen(member.lastSeenAt);
-      if (member.role === 'admin') sub.textContent += ' · admin';
-      info.append(name, sub);
-      row.appendChild(info);
-      if (amAdmin && member.userId !== me) {
-        const kick = document.createElement('button');
-        kick.className = 'mm-kick';
-        kick.textContent = 'Remove';
-        kick.addEventListener('click', async (ev) => {
-          ev.stopPropagation();
-          try {
-            await api.removeMember(chat.id, member.userId);
-            toast(`${member.displayName} removed`);
-            const updated = chat.members.filter((m) => m.userId !== member.userId);
-            store.setMembers(chat.id, updated);
-          } catch (err) {
-            toast(err instanceof Error ? err.message : 'Failed to remove', 'error');
-          }
-        });
-        row.appendChild(kick);
-      }
-      listEl.appendChild(row);
-    }
-  }
-
-  renderList(chat.members);
-
-  toggleBtn.addEventListener('click', () => {
-    addEl.classList.toggle('hidden');
-    toggleBtn.classList.toggle('hidden');
-    if (!addEl.classList.contains('hidden')) qInput.focus();
-  });
-
-  let debounce: ReturnType<typeof setTimeout> | undefined;
-  qInput.addEventListener('input', () => {
-    clearTimeout(debounce);
-    const q = qInput.value.trim();
-    if (!q) {
-      resultsEl.innerHTML = '';
-      return;
-    }
-    debounce = setTimeout(async () => {
-      try {
-        const { users } = await api.users(q);
-        resultsEl.innerHTML = '';
-        for (const user of users) {
-          if (user.id === me || chat.members.some((m) => m.userId === user.id)) continue;
-          const row = document.createElement('div');
-          row.className = 'gm-result';
-          row.appendChild(avatarEl(user.id, user.displayName, 30));
-          const span = document.createElement('span');
-          span.textContent = `${user.displayName} (@${user.username})`;
-          row.appendChild(span);
-          row.addEventListener('click', async () => {
-            try {
-              const { members } = await api.addMember(chat.id, user.id);
-              store.setMembers(chat.id, members as MemberInfo[]);
-              renderList(members as MemberInfo[]);
-              toast(`${user.displayName} added`);
-              qInput.value = '';
-              resultsEl.innerHTML = '';
-            } catch (err) {
-              toast(err instanceof Error ? err.message : 'Failed to add', 'error');
-            }
-          });
-          resultsEl.appendChild(row);
-        }
-      } catch (err) {
-        toast(err instanceof Error ? err.message : 'Search failed', 'error');
-      }
-    }, 250);
-  });
-
-  // leave / delete the group (with confirmation)
-  const leaveBtn = root.querySelector<HTMLButtonElement>('#mm-leave')!;
-  leaveBtn.addEventListener('click', async () => {
-    const ok = await confirmDialog(
-      'Leave group?',
-      amAdmin
-        ? `You are the admin — after you leave, no one can manage "${chat.name}".`
-        : `You will lose access to "${chat.name}".`,
-      'Leave',
-    );
-    if (!ok) return;
-    try {
-      await api.leaveGroup(chat.id);
-      closeModal(); // chat.removed event drops it from the sidebar
-      toast('Left the group');
-    } catch (err) {
-      toast(err instanceof Error ? err.message : 'Failed to leave', 'error');
-    }
-  });
-
-  const deleteBtn = root.querySelector<HTMLButtonElement>('#mm-delete');
-  deleteBtn?.addEventListener('click', async () => {
-    const ok = await confirmDialog(
-      'Delete group?',
-      `"${chat.name}" and all its messages will be permanently deleted for everyone. Cannot be undone.`,
-      'Delete group',
-    );
-    if (!ok) return;
-    try {
-      await api.deleteGroup(chat.id);
-      closeModal(); // chat.deleted event closes the pane + removes from sidebar
-      toast('Group deleted');
-    } catch (err) {
-      toast(err instanceof Error ? err.message : 'Failed to delete', 'error');
-    }
-  });
-
-  const closeModal = openModal(root);
-}
-
 // ── lightbox ────────────────────────────────────────────────────────────
 async function openLightbox(url: string, name: string): Promise<void> {
   const lb = $('#lightbox');

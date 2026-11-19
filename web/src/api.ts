@@ -1,4 +1,4 @@
-import type { ChatDTO, FileDTO, MessageDTO, ProfileResponse, Session, UserDTO } from './types';
+import type { ChatDTO, ChatSummary, FileDTO, MessageDTO, ProfileResponse, Session, UserDTO } from './types';
 
 const TOKEN_KEY = 'chatpulse.token';
 
@@ -139,6 +139,13 @@ export const api = {
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ msgId }),
     }),
+  updateChat: (chatId: number, body: { description?: string }) =>
+    request<{ chat: ChatSummary }>(`/api/chats/${chatId}`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    }),
+
   addMember: (id: number, userId: number) =>
     request<{ members: unknown[] }>(`/api/chats/${id}/members`, {
       method: 'POST',

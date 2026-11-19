@@ -67,6 +67,7 @@ export interface ChatSummary {
   id: number;
   type: 'private' | 'group';
   name: string | null;
+  description?: string | null;
   createdAt: number;
   members: MemberInfo[];
 }

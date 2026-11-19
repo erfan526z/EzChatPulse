@@ -20,7 +20,8 @@
     "test": "npm run test -w server",
     "smoke": "node scripts/smoke.mjs",
     "seed": "npm run seed -w server",
-    "loadtest": "npm run loadtest -w server"
+    "loadtest": "npm run loadtest -w server",
+    "ui:check": "node scripts/ui-check.mjs"
   },
   "devDependencies": {
     "concurrently": "^9.2.4"

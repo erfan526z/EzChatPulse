@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { BadRequest, Forbidden, NotFound } from '../errors.js';
 import type { Request, Response, NextFunction } from 'express';
 import { getDb } from '../db.js';
 import { requireAuth } from '../auth.js';
@@ -76,6 +77,34 @@ router.post('/chats/:id/read', requireAuth, wrap(async (req, res) => {
   }
   markRead(getDb(), req.userId, chatId, msgId);
   res.json({ ok: true });
+}));
+
+/**
+ * Group description — the blurb on the group info page.
+ * Admin only, trimmed, capped; broadcast so every member's header updates.
+ */
+router.patch('/chats/:id', requireAuth, wrap(async (req, res) => {
+  const chatId = Number(req.params.id);
+  const { description } = req.body ?? {};
+  if (description !== undefined && typeof description !== 'string') {
+    throw new BadRequest('description must be a string');
+  }
+  const db = getDb();
+  const chat = db.prepare('SELECT type FROM chats WHERE id = ?').get(chatId) as { type: string } | undefined;
+  if (!chat) throw new NotFound('Chat not found');
+  if (chat.type !== 'group') throw new BadRequest('Only groups have a description');
+  const role = db
+    .prepare('SELECT role FROM chat_members WHERE chat_id = ? AND user_id = ?')
+    .get(chatId, req.userId) as { role: string } | undefined;
+  if (!role) throw new Forbidden('You are not a member of this chat');
+  if (role.role !== 'admin') throw new Forbidden('Only the group admin can edit it');
+  if (description !== undefined) {
+    const clean = description.trim();
+    if (clean.length > 255) throw new BadRequest('description must be at most 255 characters');
+    db.prepare('UPDATE chats SET description = ? WHERE id = ?').run(clean || null, chatId);
+    broadcastToChat(chatId, { t: 'chat.updated', chat: chatSummary(db, chatId) });
+  }
+  res.json({ chat: chatSummary(db, chatId) });
 }));
 
 router.post('/chats/:id/members', requireAuth, wrap(async (req, res) => {

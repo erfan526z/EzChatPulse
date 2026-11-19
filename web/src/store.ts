@@ -88,6 +88,15 @@ class Store {
     return merged;
   }
 
+  /** Merge a partial update (name/description) into an existing chat. */
+  patchChat(chatId: number, patch: { name?: string | null; description?: string | null }): void {
+    const chat = this.state.chats.get(chatId);
+    if (!chat) return;
+    if (patch.name !== undefined) chat.name = patch.name;
+    if (patch.description !== undefined) chat.description = patch.description;
+    this.notify();
+  }
+
   removeChat(chatId: number): void {
     this.state.chats.delete(chatId);
     if (this.state.activeChatId === chatId) this.state.activeChatId = null;

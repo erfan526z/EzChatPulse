@@ -106,6 +106,16 @@ const migrations: Array<{ version: number; up: (db: Db) => void }> = [
       }
     },
   },
+  {
+    // v11 — group description, shown on the group info page
+    version: 11,
+    up(db) {
+      const cols = db.prepare('PRAGMA table_info(chats)').all() as Array<{ name: string }>;
+      if (!cols.some((c) => c.name === 'description')) {
+        db.exec('ALTER TABLE chats ADD COLUMN description TEXT');
+      }
+    },
+  },
 ];
 
 function runMigrations(db: Db): void {

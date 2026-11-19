@@ -19,6 +19,8 @@ export interface ChatDTO {
   id: number;
   type: 'private' | 'group';
   name: string | null;
+  /** group blurb shown on the info page; null for private chats and empty groups */
+  description: string | null;
   createdAt: number;
   members: MemberInfo[];
   lastMessage: MessageDTO | null;
@@ -32,6 +34,7 @@ export interface ChatSummary {
   id: number;
   type: 'private' | 'group';
   name: string | null;
+  description: string | null;
   createdAt: number;
   members: MemberInfo[];
 }
@@ -202,7 +205,7 @@ export function listReadState(db: Db, chatId: number): { userId: number; msgId: 
 export function getChat(db: Db, chatId: number, viewerId: number): ChatDTO | null {
   const row = db
     .prepare(
-      `SELECT c.id, c.type, c.name, c.created_at,
+      `SELECT c.id, c.type, c.name, c.description, c.created_at,
               (SELECT MAX(m.id) FROM messages m WHERE m.chat_id = c.id AND m.deleted_at IS NULL) AS last_msg_id,
               (SELECT COUNT(*) FROM messages m
                WHERE m.chat_id = c.id AND m.id > COALESCE(rs.last_read_message_id, 0)
@@ -216,6 +219,7 @@ export function getChat(db: Db, chatId: number, viewerId: number): ChatDTO | nul
         id: number;
         type: string;
         name: string | null;
+        description: string | null;
         created_at: number;
         last_msg_id: number | null;
         unread: number;
@@ -227,6 +231,7 @@ export function getChat(db: Db, chatId: number, viewerId: number): ChatDTO | nul
     id: row.id,
     type: row.type as 'private' | 'group',
     name: row.name,
+    description: row.description ?? null,
     createdAt: row.created_at,
     unread: row.unread,
     lastMessage: row.last_msg_id ? getMessage(db, row.last_msg_id, viewerId) : null,
@@ -237,16 +242,18 @@ export function getChat(db: Db, chatId: number, viewerId: number): ChatDTO | nul
 
 /** Viewer-agnostic summary for real-time events. */
 export function chatSummary(db: Db, chatId: number): ChatSummary {
-  const row = db.prepare('SELECT id, type, name, created_at FROM chats WHERE id = ?').get(chatId) as {
+  const row = db.prepare('SELECT id, type, name, description, created_at FROM chats WHERE id = ?').get(chatId) as {
     id: number;
     type: string;
     name: string | null;
+    description: string | null;
     created_at: number;
   };
   return {
     id: row.id,
     type: row.type as 'private' | 'group',
     name: row.name,
+    description: row.description ?? null,
     createdAt: row.created_at,
     members: listMembers(db, chatId),
   };
@@ -256,7 +263,7 @@ export function chatSummary(db: Db, chatId: number): ChatSummary {
 export function listChats(db: Db, userId: number): ChatDTO[] {
   const rows = db
     .prepare(
-      `SELECT c.id, c.type, c.name, c.created_at,
+      `SELECT c.id, c.type, c.name, c.description, c.created_at,
               (SELECT MAX(m.id) FROM messages m WHERE m.chat_id = c.id AND m.deleted_at IS NULL) AS last_msg_id,
               (SELECT COUNT(*) FROM messages m
                WHERE m.chat_id = c.id AND m.id > COALESCE(rs.last_read_message_id, 0)
@@ -271,6 +278,7 @@ export function listChats(db: Db, userId: number): ChatDTO[] {
     id: number;
     type: string;
     name: string | null;
+    description: string | null;
     created_at: number;
     last_msg_id: number | null;
     unread: number;
@@ -280,6 +288,7 @@ export function listChats(db: Db, userId: number): ChatDTO[] {
     id: r.id,
     type: r.type as 'private' | 'group',
     name: r.name,
+    description: r.description ?? null,
     createdAt: r.created_at,
     unread: r.unread,
     lastMessage: r.last_msg_id ? getMessage(db, r.last_msg_id, userId) : null,

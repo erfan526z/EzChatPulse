@@ -109,6 +109,11 @@ class ChatSocket {
         void loadChatDetail(msg.chat.id); // fetch lastMessage + unread for the viewer
         break;
 
+      case 'chat.updated':
+        // name/description changed — merge without disturbing local state
+        if (msg.chat) store.patchChat(msg.cid, { name: msg.chat.name, description: msg.chat.description });
+        break;
+
       case 'chat.member':
         if (msg.chat?.members) store.setMembers(msg.cid, msg.chat.members);
         break;
