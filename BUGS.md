@@ -36,7 +36,7 @@
 | CP-24 | **Profile card was invisible.** `.modal-overlay` starts at `opacity: 0` and only becomes visible with `.show`; the profile built its own overlay and never added it, so clicking a name underlined it and drew nothing. The card was in the DOM the whole time — which is exactly what the first verification checked, so it passed locally and shipped broken. Now rendered through the shared `openModal()` helper, and the check asserts real visibility (overlay opacity, box size, hit-test at the card's centre) instead of DOM presence | 🔺 serious | UI | ✅ verified | profiles round |
 | CP-25 | **Profile picture looked missing.** The blob loaded fine, but the avatar element already carried an inline `background` shorthand (the initials gradient) which pins `background-size: auto` — and inline beats any class rule. Setting only `background-image` afterwards drew a 512 px photo at 1:1 anchored top-left inside a 36–84 px circle, so it read as "no picture". Now the whole shorthand is replaced (`url(...) center / cover no-repeat`); the check asserts computed `background-size` is `cover` and a screenshot of the real file is inspected | 🔸 minor | UI | ✅ verified | profiles round |
 
-**28/31 closed** (CP-26, CP-28, CP-29 open). The next CP number to use: **CP-32**.
+**29/31 closed** (CP-26, CP-28 open). The next CP number to use: **CP-38**.
 
 ### Reported by the user (Nov 2026, phone note — transcribed in
 `chatpulse-stuff/notes/user-bug-list-01.md`)
@@ -46,7 +46,7 @@
 | CP-26 | Emoji set incomplete — picker ships a small curated set, not the full Unicode set | 🔸 minor | bug | 🔴 open | composer / emoji |
 | CP-27 | Admin panel's DB size does not report the same thing as the backup size (`.db` file vs VACUUM'd snapshot vs WAL) | 🔸 minor | bug | ✅ verified | admin panel / backups |
 | CP-28 | "Feels a bit slow already" — sync better-sqlite3 on one thread, no cache layer (see ROADMAP async DB item) | ⚠️ major | perf | 🔴 open | server |
-| CP-29 | Group chat header UX — header is a name + count, not a place; needs a group info screen | ⚠️ major | ux | 🔴 open | group header |
+| CP-29 | Group chat header UX — header is a name + count, not a place; needs a group info screen | ⚠️ major | ux | ✅ fixed | group header |
 | CP-30 | Profile pictures don't update for other clients until a full reload | ⚠️ major | bug | ✅ verified | profile / realtime |
 | CP-31 | Captcha sometimes cannot be solved (unreadable render? 5-min expiry? strict answer match?) | ⚠️ major | bug | ✅ verified | auth / captcha |
 
@@ -189,3 +189,31 @@ no overflow at 390 or 1280.
 - rollback snapshot `/opt/chatpulse-rollback-20261113-2321.tgz`
 - live bundle `index-hN9HdrGf.js` / `index-Br5avP8D.css`
 - media/overflow rules confirmed in the served CSS; no JS errors at 1280 / 390
+
+## CP-29 — the chat header is the way into the chat's info · FIXED
+
+**Reported:** in Telegram the whole top block — picture, name, member/online line —
+opens the info page, in private chats and groups alike. Here only the text opened
+the person card in private chats, and groups had a 👥 button that read as a dead end.
+
+**Fixed:** the identity block (picture + name + presence) is one button:
+
+- private chat → the existing person card (picture, bio, common groups)
+- group → the new **group info page**: large picture, name, "N members · M online",
+  description, member list with an admin badge and per-row remove, add member,
+  leave / delete
+- the 👥 members button is gone; the back chevron and Escape still close
+
+Description editing came with it (roadmap 8): `chats.description` (migration v11),
+`PATCH /api/chats/:id` admin-only, trimmed, capped at 255, broadcast as
+`chat.updated` so every member's client patches in place without a refetch.
+
+Verified 16/16 in the browser (both chat types, phone + desktop, description
+round-trip to the server, add-member panel), 132/132 tests.
+
+### Deployed 2026-11-19 13:33
+
+- snapshot `/opt/chatpulse-rollback-20261119-1333.tgz` · DB `pre-deploy-20261119-1333.sqlite`
+- migrations **11** (description) and **12** (activity index) applied; data intact
+  (16 users · 22 chats · 392 messages, counts only)
+- bundles `index-Dc_5NFhO.js` / `index-JSBhGOON.css`; no JS errors at 390 or 1280
