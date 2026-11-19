@@ -63,6 +63,18 @@ function authLimiter(req: Request, res: Response, next: NextFunction): void {
   next();
 }
 
+/**
+ * What the signup form needs to know before anyone types: is registration open,
+ * and is an address mandatory? Public by design — it reveals policy, not data.
+ */
+router.get('/registration-policy', wrap(async (_req, res) => {
+  const db = getDb();
+  res.json({
+    open: getSetting(db, 'registration_open', process.env.REGISTRATION_OPEN ?? 'true') === 'true',
+    emailRequired: requireVerifiedEmailSetting(db),
+  });
+}));
+
 router.post('/register', authLimiter, wrap(async (req, res) => {
   const db = getDb();
   if (getSetting(db, 'registration_open', process.env.REGISTRATION_OPEN ?? 'true') !== 'true') {
@@ -74,6 +86,20 @@ router.post('/register', authLimiter, wrap(async (req, res) => {
     res.status(400).json({ error: 'username, displayName, and password are required' });
     return;
   }
+  // when the admin requires verified emails, an address is the only way to
+  // become verified — refuse signups that cannot ever satisfy the policy
+  if (requireVerifiedEmailSetting(db)) {
+    const mail = typeof email === 'string' ? email.trim() : '';
+    if (!mail) {
+      res.status(400).json({ error: 'An email address is required to sign up', emailRequired: true });
+      return;
+    }
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(mail)) {
+      res.status(400).json({ error: 'That email address does not look right', emailRequired: true });
+      return;
+    }
+  }
+
   const policy = captchaPolicy(db);
   if (policy.enabled) {
     if (!captchaToken) {

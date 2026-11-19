@@ -73,6 +73,8 @@ export interface CaptchaAnswer {
 
 export const api = {
   captcha: () => request<CaptchaChallenge>('/api/captcha'),
+  registrationPolicy: () => request<{ open: boolean; emailRequired: boolean }>('/api/registration-policy'),
+
   register: (username: string, displayName: string, password: string, captcha?: CaptchaAnswer, email?: string) =>
     request<Session>('/api/register', {
       method: 'POST',

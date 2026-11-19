@@ -18,7 +18,7 @@ export function mountLogin(onSuccess: () => void): void {
         <div id="register-fields" class="hidden">
           <input id="f-display" type="text" placeholder="Display name" maxlength="32" autocomplete="nickname" />
           <input id="f-reg-email" type="email" placeholder="Email (optional — lets you recover your account)" maxlength="254" autocomplete="email" />
-          <p class="login-hint">We'll send one confirmation link. You can add it later in settings.</p>
+          <p class="login-hint" id="reg-email-hint">We'll send one confirmation link. You can add it later in settings.</p>
         </div>
         <input id="f-username" type="text" placeholder="Username" maxlength="32" autocomplete="username" required />
         <input id="f-password" type="password" placeholder="Password (min 8 characters)" minlength="8" autocomplete="current-password" required />
@@ -34,6 +34,22 @@ export function mountLogin(onSuccess: () => void): void {
         <p class="login-error hidden"></p>
       </form>
     </div>`;
+
+  // the signup form asks for whatever the server actually requires: with
+  // verification enforced, an address is the only way to be able to send
+  const emailInput = root.querySelector<HTMLInputElement>('#f-reg-email')!;
+  const emailHint = root.querySelector<HTMLParagraphElement>('#reg-email-hint')!;
+  void api
+    .registrationPolicy()
+    .then((policy) => {
+      if (!policy.emailRequired) return;
+      emailInput.placeholder = 'Email (required)';
+      emailInput.required = true;
+      emailHint.textContent = "We'll send one confirmation link. Confirm it before you can send messages.";
+    })
+    .catch(() => {
+      /* policy is advisory here: the server still enforces it on submit */
+    });
 
   const tabs = [...root.querySelectorAll<HTMLButtonElement>('.tab')];
   const registerFields = root.querySelector<HTMLDivElement>('#register-fields')!;

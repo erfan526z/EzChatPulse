@@ -102,14 +102,16 @@ export function requireVerifiedEmailSetting(db: Db): boolean {
  * True when this account may NOT send messages yet: the admin requires verified
  * emails and this account has not been verified. `email_verified = 1` is the
  * single source of truth — it is set by the emailed link, or manually by an admin
- * for people who cannot receive mail at all.
+ * for people who cannot receive mail at all. Accounts grandfathered when the
+ * policy was switched on (`verification_exempt = 1`) are never blocked.
  */
 export function sendingBlockedByVerification(db: Db, userId: number): boolean {
   if (!requireVerifiedEmailSetting(db)) return false;
-  const row = db.prepare('SELECT email_verified FROM users WHERE id = ?').get(userId) as
-    | { email_verified: number }
+  const row = db.prepare('SELECT email_verified, verification_exempt FROM users WHERE id = ?').get(userId) as
+    | { email_verified: number; verification_exempt: number }
     | undefined;
   if (!row) return false;
+  if (row.verification_exempt === 1) return false; // predates the requirement
   return row.email_verified !== 1;
 }
 

@@ -107,6 +107,19 @@ const migrations: Array<{ version: number; up: (db: Db) => void }> = [
     },
   },
   {
+    // v13 — grandfathering for the email-verification policy.
+    // Accounts that already existed when the policy was switched on keep sending:
+    // most of them never gave an address, so they could not verify if asked.
+    version: 13,
+    up(db) {
+      const cols = db.prepare('PRAGMA table_info(users)').all() as Array<{ name: string }>;
+      if (!cols.some((c) => c.name === 'verification_exempt')) {
+        db.exec('ALTER TABLE users ADD COLUMN verification_exempt INTEGER NOT NULL DEFAULT 0');
+      }
+      db.exec('UPDATE users SET verification_exempt = 1');
+    },
+  },
+  {
     // v12 — the chat list asks for MAX(created_at) per chat, which had no index
     // to seek and therefore scanned every message of every chat (16ms at 100
     // chats / 50k messages). Partial index matches the queries' own filter.
