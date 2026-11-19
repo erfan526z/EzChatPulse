@@ -104,10 +104,23 @@ export function mountEmojiPanel(input: HTMLTextAreaElement, host: HTMLElement): 
     });
   }
 
+  /**
+   * Line the panel up with the button that opened it, then pull it back so it
+   * never runs past the composer's right edge (on a phone the clamp wins and it
+   * sits at the edge, which is what you want there anyway).
+   */
+  function place(): void {
+    const width = panel.offsetWidth;
+    const edge = 12;
+    const limit = Math.max(edge, host.clientWidth - width - edge);
+    panel.style.left = `${Math.min(Math.max(btn!.offsetLeft, edge), limit)}px`;
+  }
+
   function openPanel(): void {
     renderTabs();
     renderGrid();
     panel.classList.remove('hidden');
+    place();
     open = true;
   }
 

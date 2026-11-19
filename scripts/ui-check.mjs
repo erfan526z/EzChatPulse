@@ -199,14 +199,54 @@ const openChat = async (page, name) => {
   const typed = await page.evaluate(() => document.querySelector('#composer textarea')?.value ?? '');
   check('clicking an emoji inserts it at the cursor', typed.includes(first), JSON.stringify(typed.slice(0, 12)));
 
-  await page.click('#emoji-btn');
-  await page.waitForTimeout(300);
+  // the panel is still open — clicking a cell does not close it
+  const panelOpen = await page.evaluate(() => !document.querySelector('.emoji-panel').classList.contains('hidden'));
+  check('panel stays open after picking an emoji', panelOpen);
   const recents = await page.evaluate(() => {
-    document.querySelector('.emoji-cat-btn[title="Recently used"]')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    document.querySelector('.emoji-cat-btn[title="Recently used"]')?.click();
     return [...document.querySelectorAll('.emoji-cell')].map((c) => c.textContent).slice(0, 3);
   });
   check('a used emoji appears in recents', recents.includes(first), JSON.stringify(recents));
+
+  // the panel must open from its trigger, and the category strip must not need
+  // a sideways scrollbar (eleven tabs, one row, inside the panel)
+  const geometry = await page.evaluate(() => {
+    const panel = document.querySelector('.emoji-panel');
+    const btn = document.querySelector('#emoji-btn');
+    const cats = document.querySelector('.emoji-cats');
+    const tabs = [...document.querySelectorAll('.emoji-cat-btn')];
+    return {
+      panelLeft: Math.round(panel.getBoundingClientRect().left),
+      btnLeft: Math.round(btn.getBoundingClientRect().left),
+      panelRight: Math.round(panel.getBoundingClientRect().right),
+      viewport: window.innerWidth,
+      overflow: cats.scrollWidth - cats.clientWidth,
+      rows: new Set(tabs.map((t) => t.offsetTop)).size,
+    };
+  });
+  check(
+    'panel is open and inside the viewport',
+    geometry.panelRight > 0 && geometry.panelRight <= geometry.viewport,
+    JSON.stringify(geometry),
+  );
+  check('category strip has no horizontal scrollbar', geometry.overflow <= 0, `overflow ${geometry.overflow}px`);
+  check('all categories sit on one row', geometry.rows === 1, `${geometry.rows} row(s)`);
   check('no JS errors (emoji)', errors.length === 0, errors.join(' | '));
+  await ctx.close();
+}
+
+{
+  // desktop: the trigger is not at the window's edge, so anchoring matters
+  const { ctx, page } = await session(1280, 800);
+  await openChat(page, 'Our Group');
+  await page.click('#emoji-btn');
+  await page.waitForTimeout(400);
+  const geo = await page.evaluate(() => {
+    const panel = document.querySelector('.emoji-panel').getBoundingClientRect();
+    const btn = document.querySelector('#emoji-btn').getBoundingClientRect();
+    return { delta: Math.round(panel.left - btn.left), panelW: Math.round(panel.width) };
+  });
+  check('desktop: panel opens from the emoji button, not the opposite corner', Math.abs(geo.delta) <= 2, `off by ${geo.delta}px, ${geo.panelW}px wide`);
   await ctx.close();
 }
 

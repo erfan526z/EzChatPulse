@@ -1006,6 +1006,7 @@ button {
 
 /* ── composer ──────────────────────────────────────────────────────────── */
 #composer {
+  position: relative; /* the emoji panel anchors to the composer, not the pane */
   flex: 0 0 auto;
   padding: var(--s-2) var(--s-3) var(--s-3);
   background: var(--bg-bar);
@@ -1873,9 +1874,12 @@ button {
 .emoji-panel {
   position: absolute;
   bottom: 4.75rem;
-  right: var(--s-3);
-  width: min(21rem, calc(100vw - 1.5rem));
-  max-height: 16rem;
+  /* the trigger sits on the composer's left edge — open from there, not the
+     opposite corner (on desktop the panel used to land ~550px away) */
+  left: var(--s-3);
+  right: auto;
+  width: min(23rem, calc(100vw - 1.5rem));
+  max-height: 18rem;
   display: flex;
   flex-direction: column;
   border-radius: var(--r-card);
@@ -1892,19 +1896,22 @@ button {
 
 .emoji-cats {
   display: flex;
-  gap: 2px;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 1px;
   padding: var(--s-1);
   border-bottom: 1px solid var(--border);
-  overflow-x: auto;
 }
 
 .emoji-cat-btn {
   flex: 0 0 auto;
-  padding: 0.25rem 0.5rem;
+  /* eleven categories must fit one row in a 345px panel — wrapping leaves a
+     single orphan tab on the second line */
+  padding: 0.1875rem 0.375rem;
   border: 0;
   border-radius: 0.5rem;
   background: transparent;
-  font-size: var(--fs-14);
+  font-size: var(--fs-13);
   cursor: pointer;
 }
 
@@ -1915,7 +1922,7 @@ button {
 .emoji-grid {
   flex: 1;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(1.9rem, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(2.1rem, 1fr));
   gap: 2px;
   padding: var(--s-2);
   overflow-y: auto;
