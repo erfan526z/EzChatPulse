@@ -1,5 +1,6 @@
 import { api, setToken } from '../api';
 import { store } from '../store';
+import { pushBackLayer } from './back-stack';
 import { toast } from './toast';
 import { avatarEl } from './format';
 import { ACCENT_PRESETS, applyAccent, applyTheme, currentTheme, accentPreset, type Theme } from './theme';
@@ -13,6 +14,7 @@ import { ACCENT_PRESETS, applyAccent, applyTheme, currentTheme, accentPreset, ty
  */
 
 let closeCurrent: (() => void) | null = null;
+let dropLayer: (() => void) | null = null;
 
 const SECTIONS = [
   { id: 'set-profile', label: 'Profile' },
@@ -595,12 +597,16 @@ export function openSettings(): void {
     }
   };
   function close(): void {
+    const drop = dropLayer;
+    dropLayer = null;
+    drop?.();
     document.removeEventListener('keydown', onKey);
     screen.classList.remove('show');
     window.setTimeout(() => screen.remove(), 200);
     closeCurrent = null;
   }
   document.addEventListener('keydown', onKey);
+  dropLayer = pushBackLayer(() => close());
   closeCurrent = close;
 }
 

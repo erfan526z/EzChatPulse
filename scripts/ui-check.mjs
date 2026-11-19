@@ -173,6 +173,92 @@ const openChat = async (page, name) => {
   await ctx.close();
 }
 
+
+// ── emoji: broad set + recents ──────────────────────────────────────────
+{
+  const { ctx, page, errors } = await session(390, 844);
+  await openChat(page, 'Jack');
+  await page.click('#emoji-btn');
+  await page.waitForTimeout(400);
+  const panel = await page.evaluate(() => {
+    const tabs = [...document.querySelectorAll('.emoji-cat-btn')];
+    return {
+      open: !document.querySelector('.emoji-panel')?.classList.contains('hidden'),
+      tabs: tabs.length,
+      cells: document.querySelectorAll('.emoji-cell').length,
+      titles: tabs.map((t) => t.title),
+    };
+  });
+  check('emoji panel opens with a recents tab', panel.open && panel.titles[0] === 'Recently used', panel.titles.join(', '));
+  check('emoji set is broad', panel.tabs >= 10 && panel.cells >= 80, `${panel.tabs} categories, ${panel.cells} cells in the active one`);
+
+  // pick one, reopen: it should now be first in recents
+  const first = await page.evaluate(() => document.querySelector('.emoji-cell')?.textContent ?? '');
+  await page.click('.emoji-cell');
+  await page.waitForTimeout(200);
+  const typed = await page.evaluate(() => document.querySelector('#composer textarea')?.value ?? '');
+  check('clicking an emoji inserts it at the cursor', typed.includes(first), JSON.stringify(typed.slice(0, 12)));
+
+  await page.click('#emoji-btn');
+  await page.waitForTimeout(300);
+  const recents = await page.evaluate(() => {
+    document.querySelector('.emoji-cat-btn[title="Recently used"]')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    return [...document.querySelectorAll('.emoji-cell')].map((c) => c.textContent).slice(0, 3);
+  });
+  check('a used emoji appears in recents', recents.includes(first), JSON.stringify(recents));
+  check('no JS errors (emoji)', errors.length === 0, errors.join(' | '));
+  await ctx.close();
+}
+
+// ── hardware back walks back through the app, not out of it ──────────────
+{
+  const { ctx, page, errors } = await session(390, 844);
+  const shown = (sel) =>
+    page.evaluate((s) => {
+      const el = document.querySelector(s);
+      return Boolean(el && el.getBoundingClientRect().width > 0);
+    }, sel);
+  const goBack = async () => {
+    await page.evaluate(() => history.back());
+    await page.waitForTimeout(600);
+  };
+
+  await openChat(page, 'Jack');
+  check('phone: the conversation replaces the list', await shown('#chat-header'));
+  await goBack();
+  check(
+    'back closes the conversation and stays in the app',
+    !(await shown('#chat-header')) && (await shown('#sidebar')),
+    `app alive: ${await page.evaluate(() => Boolean(document.querySelector('#main-view')?.offsetParent))}`,
+  );
+
+  await page.click('#btn-drawer');
+  await page.waitForTimeout(500);
+  check('drawer opens', await shown('.drawer'));
+  await goBack();
+  check('back closes the drawer', !(await shown('.drawer')) && (await shown('#sidebar')));
+
+  await page.click('#btn-me');
+  await page.waitForTimeout(600);
+  check('settings opens', await shown('.settings-screen'));
+  await goBack();
+  check('back closes settings', !(await shown('.settings-screen')) && (await shown('#sidebar')));
+
+  // a modal sits on top of a chat: back must close the modal first, then the chat
+  await openChat(page, 'Jack');
+  await page.click('.chat-header-main');
+  await page.waitForTimeout(600);
+  const modalUp = await shown('#modal-root .modal-overlay');
+  await goBack();
+  const modalGone = !(await shown('#modal-root .modal-overlay'));
+  check('back closes the profile modal first', modalUp && modalGone && (await shown('#chat-header')));
+  await goBack();
+  check('and then the conversation', !(await shown('#chat-header')) && (await shown('#sidebar')));
+
+  check('no JS errors (back stack)', errors.length === 0, errors.join(' | '));
+  await ctx.close();
+}
+
 // ── settings: accent + theme + profile editor ────────────────────────────
 {
   const { ctx, page, errors } = await session(390, 844);

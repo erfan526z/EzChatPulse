@@ -8,6 +8,8 @@ export interface Config {
   dataDir: string;
   uploadsDir: string;
   dbPath: string;
+  /** plain-HTTP port that 301s to https; 0 disables the listener */
+  httpPort: number;
   certPath: string;
   keyPath: string;
   jwtSecret: string;
@@ -54,6 +56,7 @@ export const config: Config = (() => {
     dataDir,
     uploadsDir,
     dbPath: process.env.DB_PATH ?? path.join(dataDir, 'chatpulse.db'),
+    httpPort: Number(process.env.HTTP_PORT ?? 0),
     certPath: path.resolve(process.env.CERT_PATH ?? path.join(serverRoot, '..', 'certs', 'cert.pem')),
     keyPath: path.resolve(process.env.KEY_PATH ?? path.join(serverRoot, '..', 'certs', 'key.pem')),
     jwtSecret: loadOrCreateJwtSecret(dataDir),

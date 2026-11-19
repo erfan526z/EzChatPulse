@@ -1,3 +1,5 @@
+import { pushBackLayer } from './back-stack';
+
 export interface ToastAction {
   label: string;
   onClick: () => void;
@@ -56,7 +58,9 @@ export function openModal(content: HTMLElement): () => void {
   root.appendChild(overlay);
   requestAnimationFrame(() => overlay.classList.add('show'));
 
+  const drop = pushBackLayer(() => close());
   const close = () => {
+    drop();
     document.removeEventListener('keydown', onKey);
     overlay.classList.remove('show');
     setTimeout(() => overlay.remove(), 200);

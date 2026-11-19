@@ -9,6 +9,7 @@
  */
 import https from 'node:https';
 import http from 'node:http';
+import zlib from 'node:zlib';
 
 const arg = (name, fallback) => {
   const i = process.argv.indexOf(`--${name}`);
@@ -18,6 +19,9 @@ const BASE = arg('base', 'https://localhost:8443');
 const USER = arg('user', 'probe');
 const PASS = arg('pass', 'probepass123');
 const N = Number(arg('n', 30));
+// --gzip measures the wire size: the probe counts bytes as they arrive, and
+// node does not transparently decode gzip, so the number is what the phone pays
+const GZIP = process.argv.includes('--gzip');
 const url = new URL(BASE);
 const secure = url.protocol === 'https:';
 const agent = secure ? new https.Agent({ rejectUnauthorized: false, keepAlive: true }) : undefined;
@@ -29,16 +33,21 @@ function request(method, path, body, token) {
     if (payload) headers['content-type'] = 'application/json';
     if (payload) headers['content-length'] = String(payload.length);
     if (token) headers.authorization = `Bearer ${token}`;
+    if (GZIP) headers['accept-encoding'] = 'gzip';
     const started = process.hrtime.bigint();
     const lib = secure ? https : http;
     const req = lib.request(
       { hostname: url.hostname, port: url.port, path, method, headers, agent },
       (res) => {
-        let data = '';
-        res.on('data', (c) => (data += c));
+        const chunks = [];
+        res.on('data', (c) => chunks.push(c));
         res.on('end', () => {
           const ms = Number(process.hrtime.bigint() - started) / 1e6;
-          resolve({ status: res.statusCode, ms, bytes: Buffer.byteLength(data), body: data });
+          const wire = Buffer.concat(chunks);
+          // bytes on the wire is what we report; the body is decoded for parsing
+          const gz = res.headers['content-encoding'] === 'gzip';
+          const body = gz ? zlib.gunzipSync(wire).toString('utf8') : wire.toString('utf8');
+          resolve({ status: res.statusCode, ms, bytes: wire.length, body, encoding: gz ? 'gzip' : 'identity' });
         });
       },
     );
@@ -58,6 +67,7 @@ async function measure(label, fn) {
   const times = [];
   let bytes = 0;
   let status = 0;
+  let encoding = 'identity';
   // one warm-up, so we do not measure cold caches on the first run
   await fn();
   for (let i = 0; i < N; i++) {
@@ -65,10 +75,11 @@ async function measure(label, fn) {
     times.push(r.ms);
     bytes += r.bytes ?? 0;
     status = r.status ?? status;
+    encoding = r.encoding ?? encoding;
   }
   const total = times.reduce((a, b) => a + b, 0);
   console.log(
-    `${label.padEnd(34)} p50 ${pct(times, 50).toFixed(1).padStart(7)}ms  p95 ${pct(times, 95).toFixed(1).padStart(7)}ms  max ${Math.max(...times).toFixed(1).padStart(7)}ms  avg ${(total / times.length).toFixed(1).padStart(7)}ms  ${(bytes / times.length / 1024).toFixed(1).padStart(6)}KB  [${status}]`,
+    `${label.padEnd(34)} p50 ${pct(times, 50).toFixed(1).padStart(7)}ms  p95 ${pct(times, 95).toFixed(1).padStart(7)}ms  max ${Math.max(...times).toFixed(1).padStart(7)}ms  avg ${(total / times.length).toFixed(1).padStart(7)}ms  ${(bytes / times.length / 1024).toFixed(1).padStart(6)}KB  [${status}${encoding === 'gzip' ? ' gzip' : ''}]`,
   );
   return { p50: pct(times, 50), p95: pct(times, 95), avg: total / times.length };
 }
@@ -82,7 +93,7 @@ const token = JSON.parse(login.body).token;
 const chats = JSON.parse((await request('GET', '/api/chats', undefined, token)).body).chats;
 const busiest = [...chats].sort((a, b) => (b.unread ?? 0) - (a.unread ?? 0))[0];
 
-console.log(`probing ${BASE} as ${USER} · ${chats.length} chats · ${N} samples each\n`);
+console.log(`probing ${BASE} as ${USER} · ${chats.length} chats · ${N} samples each${GZIP ? ' · gzip' : ''}\n`);
 
 await measure('/api/health', () => request('GET', '/api/health'));
 await measure('/api/chats (list, all chats)', () => request('GET', '/api/chats', undefined, token));

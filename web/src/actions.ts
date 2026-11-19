@@ -1,5 +1,6 @@
 import { api } from './api';
 import { store } from './store';
+import { pushBackLayer } from './ui/back-stack';
 import { socket } from './ws';
 
 /** Refresh the whole chat list from the server. */
@@ -43,8 +44,29 @@ export async function resyncAfterReconnect(): Promise<void> {
   }
 }
 
+/** Phone layout: the conversation replaces the list, so it is a layer. */
+const isPhoneLayout = (): boolean => window.matchMedia('(max-width: 51.25rem)').matches;
+
+/** Drop handle for the open conversation's back entry (null when not a layer). */
+let chatLayer: (() => void) | null = null;
+
+/** Leave the conversation: back chevron, Escape, or the system back button. */
+export function closeActiveChat(): void {
+  const drop = chatLayer;
+  chatLayer = null;
+  drop?.();
+  store.setActiveChat(null);
+}
+
 /** Open a chat: load its first history page if empty, then mark as read. */
 export async function openChat(chatId: number): Promise<void> {
+  // on a phone, hardware back must return to the list, not leave the app
+  if (isPhoneLayout() && store.state.activeChatId === null && !chatLayer) {
+    chatLayer = pushBackLayer(() => {
+      chatLayer = null;
+      store.setActiveChat(null);
+    });
+  }
   store.setActiveChat(chatId);
   const chat = store.state.chats.get(chatId);
   if (!chat) return;

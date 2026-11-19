@@ -2,6 +2,7 @@ import { api } from '../api';
 import { store } from '../store';
 import { avatarEl, formatLastSeen } from './format';
 import { openProfile } from './profile';
+import { pushBackLayer } from './back-stack';
 import { confirmDialog, toast } from './toast';
 import type { MemberInfo, UIChat } from '../types';
 
@@ -14,6 +15,7 @@ import type { MemberInfo, UIChat } from '../types';
  */
 
 let closeCurrent: (() => void) | null = null;
+let dropLayer: (() => void) | null = null;
 let refreshCurrent: (() => void) | null = null;
 
 function el<K extends keyof HTMLElementTagNameMap>(
@@ -63,7 +65,12 @@ export function openChatInfo(chat: UIChat): void {
   screen.append(top, scroll);
   document.body.appendChild(screen);
 
+  dropLayer = pushBackLayer(() => close());
+
   const close = (): void => {
+    const drop = dropLayer;
+    dropLayer = null;
+    drop?.();
     document.removeEventListener('keydown', onKey);
     screen.classList.remove('show');
     window.setTimeout(() => screen.remove(), 200);

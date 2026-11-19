@@ -3,7 +3,7 @@ import './styles.css';
 import { api, getToken, setToken } from './api';
 import { store } from './store';
 import { socket } from './ws';
-import { refreshChats, openChat } from './actions';
+import { closeActiveChat, refreshChats, openChat } from './actions';
 import { mountLogin } from './ui/login';
 import { mountSidebar } from './ui/sidebar';
 import { mountChatPane } from './ui/chat';
@@ -46,7 +46,7 @@ async function boot(): Promise<void> {
   document.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return;
     if (document.querySelector('#modal-root .modal-overlay, #lightbox:not(.hidden)')) return;
-    if (store.state.activeChatId != null) store.setActiveChat(null);
+    if (store.state.activeChatId != null) closeActiveChat();
   });
 
   const token = getToken();

@@ -1,4 +1,5 @@
 import { store } from '../store';
+import { pushBackLayer } from './back-stack';
 import { avatarEl } from './format';
 import { openSettings } from './settings';
 import { openCreateGroupModal } from './group';
@@ -14,6 +15,7 @@ import { setToken } from '../api';
 let scrim: HTMLDivElement | null = null;
 let panel: HTMLDivElement | null = null;
 let onKey: ((e: KeyboardEvent) => void) | null = null;
+let dropLayer: (() => void) | null = null;
 
 export function isDrawerOpen(): boolean {
   return Boolean(panel && panel.classList.contains('show'));
@@ -21,6 +23,9 @@ export function isDrawerOpen(): boolean {
 
 export function closeDrawer(): void {
   if (!panel || !scrim) return;
+  const drop = dropLayer;
+  dropLayer = null;
+  drop?.();
   panel.classList.remove('show');
   scrim.classList.remove('show');
   if (onKey) {
@@ -51,6 +56,11 @@ export function openDrawer(host: HTMLElement): void {
     closeDrawer();
     return;
   }
+  // back closes the drawer before it leaves the app
+  dropLayer = pushBackLayer(() => {
+    dropLayer = null;
+    closeDrawer();
+  });
   const session = store.state.session;
   if (!session) return;
   const me = session.user;

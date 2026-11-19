@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import http from 'node:http';
 import https from 'node:https';
 import express from 'express';
 import { WebSocketServer, type WebSocket } from 'ws';
@@ -18,6 +19,7 @@ import { startBackupSchedule } from './services/backup.js';
 import { verifyEmailToken } from './services/verification.js';
 import { mountWebClient } from './static.js';
 import { noStoreApi } from './api-cache.js';
+import { gzipJson } from './api-compress.js';
 
 const app = express();
 app.use(express.json({ limit: '100kb' }));
@@ -25,6 +27,8 @@ app.use(express.json({ limit: '100kb' }));
 // API answers are live, per-user data: never let a browser or CDN cache them
 // (routes that stream immutable files set their own Cache-Control afterwards).
 app.use('/api', noStoreApi);
+// JSON compresses ~10:1; the chat list is the payload that matters
+app.use('/api', gzipJson);
 
 // Health (no auth)
 app.get('/api/health', (_req, res) => {
@@ -93,6 +97,35 @@ mountWebClient(app, webDist);
 
 // Central error handler: AppError → its status, client faults → 400, else 500
 app.use(errorHandler);
+
+/**
+ * Plain-HTTP entry point: 301 everything to the secure origin.
+ *
+ * Off unless HTTP_PORT is set (production sets 80). The app runs unprivileged
+ * with CAP_NET_BIND_SERVICE, so binding 80 is allowed without root.
+ */
+if (config.httpPort > 0) {
+  const httpServer = http.createServer((req, res) => {
+    const rawHost = req.headers.host ?? '';
+    const host = rawHost.replace(/:\d+$/, '');
+    if (!host) {
+      res.writeHead(400, { 'content-type': 'text/plain' }).end('bad request\n');
+      return;
+    }
+    // keep the request path and query, drop nothing
+    res.writeHead(301, {
+      location: `https://${host}${req.url ?? '/'}`,
+      'cache-control': 'public, max-age=300',
+    });
+    res.end();
+  });
+  httpServer.listen(config.httpPort, config.host, () => {
+    console.log(`ezchatpulse redirecting http://${config.host}:${config.httpPort} → https`);
+  });
+  httpServer.on('error', (err) => {
+    console.error(`http redirect listener failed on :${config.httpPort}`, err.message);
+  });
+}
 
 const server = https.createServer(
   {

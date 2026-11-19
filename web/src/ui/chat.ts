@@ -1,7 +1,7 @@
 import { api, authedFileUrl } from '../api';
 import { store } from '../store';
 import { socket } from '../ws';
-import { loadMore } from '../actions';
+import { closeActiveChat, loadMore } from '../actions';
 import { avatarEl, formatClock, formatLastSeen, formatBytes, isImageMime } from './format';
 import { openProfile } from './profile';
 import { openChatInfo } from './chat-info';
@@ -44,7 +44,7 @@ export function mountChatPane(): void {
     back.className = 'icon-btn back-btn';
     back.title = 'Back';
     back.textContent = '‹';
-    back.addEventListener('click', () => store.setActiveChat(null));
+    back.addEventListener('click', () => closeActiveChat());
     headerEl.appendChild(back);
 
     const peer = chat.type === 'private' ? chat.members.find((m) => m.userId !== store.state.session?.user.id) : undefined;
