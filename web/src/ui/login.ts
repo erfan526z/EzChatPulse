@@ -39,13 +39,17 @@ export function mountLogin(onSuccess: () => void): void {
   // verification enforced, an address is the only way to be able to send
   const emailInput = root.querySelector<HTMLInputElement>('#f-reg-email')!;
   const emailHint = root.querySelector<HTMLParagraphElement>('#reg-email-hint')!;
+  /** does the server require an address? set once the policy request lands */
+  let emailRequired = false;
   void api
     .registrationPolicy()
     .then((policy) => {
       if (!policy.emailRequired) return;
+      emailRequired = true;
       emailInput.placeholder = 'Email (required)';
-      emailInput.required = true;
       emailHint.textContent = "We'll send one confirmation link. Confirm it before you can send messages.";
+      // only the visible tab may hold constraints (see applyTab)
+      if (!registerFields.classList.contains('hidden')) emailInput.required = true;
     })
     .catch(() => {
       /* policy is advisory here: the server still enforces it on submit */
@@ -62,6 +66,8 @@ export function mountLogin(onSuccess: () => void): void {
 
   /** Current challenge; null = no captcha needed (yet). */
   let challenge: CaptchaChallenge | null = null;
+
+  applyTab(false); // start on Sign in: the hidden register fields must not validate
 
   function showChallenge(c: CaptchaChallenge): void {
     challenge = c;
@@ -98,15 +104,30 @@ export function mountLogin(onSuccess: () => void): void {
     return false;
   }
 
+  /**
+   * Show one tab and make only that tab's fields participate in the form.
+   *
+   * A `required` control inside a hidden container makes the whole form invalid
+   * and the browser silently refuses to submit — clicking "Sign in" looked like
+   * a no-op with no error anywhere ("An invalid form control is not focusable").
+   * Disabled controls are exempt from validation and from submission, so the
+   * hidden tab is disabled outright.
+   */
+  function applyTab(isRegister: boolean): void {
+    registerFields.classList.toggle('hidden', !isRegister);
+    for (const field of registerFields.querySelectorAll<HTMLInputElement>('input')) {
+      field.disabled = !isRegister;
+    }
+    emailInput.required = isRegister && emailRequired;
+    submitBtn.textContent = isRegister ? 'Create account' : 'Sign in';
+    if (isRegister && !challenge) void refreshChallenge();
+  }
+
   tabs.forEach((tab) =>
     tab.addEventListener('click', () => {
       tabs.forEach((t) => t.classList.remove('active'));
       tab.classList.add('active');
-      const isRegister = tab.dataset.tab === 'register';
-      registerFields.classList.toggle('hidden', !isRegister);
-      submitBtn.textContent = isRegister ? 'Create account' : 'Sign in';
-      // registration always carries a captcha (when the server has it enabled)
-      if (isRegister && !challenge) void refreshChallenge();
+      applyTab(tab.dataset.tab === 'register');
     }),
   );
 

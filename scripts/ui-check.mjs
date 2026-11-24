@@ -70,6 +70,75 @@ const openChat = async (page, name) => {
   await page.waitForTimeout(600);
 };
 
+
+// ── sign-in actually submits (a hidden required field used to kill it) ───
+{
+  // no token: this is the real login screen, policy fetch included
+  const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  const page = await ctx.newPage();
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  const posts = [];
+  page.on('request', (r) => {
+    if (r.url().includes('/api/login')) posts.push(r.method());
+  });
+  await page.goto(BASE, { waitUntil: 'domcontentloaded' });
+  await page.waitForSelector('#login-form', { timeout: 20000 });
+  await page.waitForTimeout(1200); // the registration-policy request
+
+  const state = await page.evaluate(() => {
+    const form = document.querySelector('#login-form');
+    const hidden = [...form.querySelectorAll('input')].filter(
+      (i) => !i.disabled && i.required && i.getBoundingClientRect().width === 0,
+    );
+    return { hiddenRequired: hidden.map((i) => i.id), registerHidden: getComputedStyle(document.querySelector('#register-fields')).display === 'none' };
+  });
+  check(
+    'no required field hides inside the inactive tab',
+    state.hiddenRequired.length === 0,
+    `${state.registerHidden ? 'register tab hidden' : 'register tab shown'}${state.hiddenRequired.length ? ' — offenders: ' + state.hiddenRequired.join(',') : ''}`,
+  );
+
+  await page.fill('#f-username', USER);
+  await page.fill('#f-password', PASS);
+  await page.waitForTimeout(100);
+  const valid = await page.evaluate(() => document.querySelector('#login-form').checkValidity());
+  check('login form is valid once filled', valid);
+
+  await page.click('#login-submit');
+  await page.waitForSelector('.chat-item', { timeout: 15000 }).catch(() => {});
+  check('clicking Sign in issues a login request', posts.length === 1, `${posts.length} request(s)`);
+  check(
+    'and the app actually loads',
+    await page.evaluate(() => document.querySelectorAll('.chat-item').length > 0),
+  );
+
+  // the register tab still demands an address when the server requires one
+  const ctx2 = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const page2 = await ctx2.newPage();
+  await page2.goto(BASE, { waitUntil: 'domcontentloaded' });
+  await page2.waitForSelector('#login-form', { timeout: 20000 });
+  await page2.waitForTimeout(1200);
+  await page2.click('.tab[data-tab="register"]');
+  await page2.waitForTimeout(300);
+  const reg = await page2.evaluate(() => {
+    const email = document.querySelector('#f-reg-email');
+    const form = document.querySelector('#login-form');
+    document.querySelector('#f-username').value = 'somebody';
+    document.querySelector('#f-password').value = 'password123';
+    return { required: email.required, disabled: email.disabled, validWithoutEmail: form.checkValidity() };
+  });
+  check(
+    'register tab: email is required when the policy is on',
+    reg.required && !reg.disabled,
+    JSON.stringify(reg),
+  );
+  check('and an empty address blocks the form (not silently)', reg.validWithoutEmail === false);
+  await ctx2.close();
+  check('no JS errors (login)', errors.length === 0, errors.join(' | '));
+  await ctx.close();
+}
+
 // ── tokens + layout ladder ───────────────────────────────────────────────
 {
   const { ctx, page, errors } = await session(1280, 800);
