@@ -36,7 +36,7 @@
 | CP-24 | **Profile card was invisible.** `.modal-overlay` starts at `opacity: 0` and only becomes visible with `.show`; the profile built its own overlay and never added it, so clicking a name underlined it and drew nothing. The card was in the DOM the whole time — which is exactly what the first verification checked, so it passed locally and shipped broken. Now rendered through the shared `openModal()` helper, and the check asserts real visibility (overlay opacity, box size, hit-test at the card's centre) instead of DOM presence | 🔺 serious | UI | ✅ verified | profiles round |
 | CP-25 | **Profile picture looked missing.** The blob loaded fine, but the avatar element already carried an inline `background` shorthand (the initials gradient) which pins `background-size: auto` — and inline beats any class rule. Setting only `background-image` afterwards drew a 512 px photo at 1:1 anchored top-left inside a 36–84 px circle, so it read as "no picture". Now the whole shorthand is replaced (`url(...) center / cover no-repeat`); the check asserts computed `background-size` is `cover` and a screenshot of the real file is inspected | 🔸 minor | UI | ✅ verified | profiles round |
 
-**31/31 closed** — CP-26 and CP-28 closed 2026-11-19. The next CP number to use: **CP-38**.
+**32/32 closed**. The next CP number to use: **CP-40**.
 
 ### Reported by the user (Nov 2026, phone note — transcribed in
 `chatpulse-stuff/notes/user-bug-list-01.md`)
@@ -296,3 +296,40 @@ silenced 11 of 16 with no path back.
 address were verified in the past, but no message was sent during this deploy.
 If a send fails for a new signup, the recovery path is the composer banner
 ("Resend verification") plus `POST /api/admin/users/:id/verify-email`.
+
+## CP-39 — the Sign in button did nothing at all · FIXED (critical, regression)
+
+**Reported:** on a Windows 10 desktop the Sign in button "looked completely no op
+from outside" — no request, no error, no spinner.
+
+**Cause — mine, introduced with the verification policy.** When the policy is on,
+the register form marks the email field `required`. That field lives in the Sign-in
+form inside `#register-fields`, which is `display: none` while the Sign-in tab is
+active. A `required` control that is not rendered makes the **whole form** invalid,
+and the browser then refuses to submit it — reporting this only in the console
+(`An invalid form control with name='' is not focusable`). Reproduced exactly:
+**0 login requests**, `form.checkValidity() === false`, no visible error.
+
+**Fix:** `applyTab()` owns the tab's state. The inactive tab's inputs are
+`disabled` (disabled controls are exempt from constraint validation *and* from
+submission), and the address is only `required` while the register tab is visible.
+The policy fetch no longer touches a field it cannot see.
+
+**Why it reached production:** the verification deploy shipped at 15:4x and the
+policy flipped minutes later; the browser suite logged in with a token and so
+never rendered the login form. That gap is now closed — 7 checks cover the real
+Sign-in screen: no hidden required fields, the form validates when filled,
+clicking Sign in issues exactly one request, the app loads, and the register tab
+still demands an address.
+
+**Root cause class to remember:** a `required` (or `minlength`) control inside a
+hidden container silently disables the entire form. Anything that hides a form
+section must `disabled` its fields.
+
+### Deployed 2026-11-24 20:13
+
+- rollback `/opt/chatpulse-rollback-20261124-2013.tgz`
+- bundles `index-IhBLX0OB.js`; service active; health ok
+- verified live: policy-aware form ("Email (required)" placeholder), **no**
+  hidden required fields, clicking Sign in issues a POST → 401 →
+  "Invalid username or password" on screen
